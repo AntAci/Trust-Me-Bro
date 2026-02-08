@@ -118,7 +118,7 @@ Trust-Me-Bro/
 │   └── demo.py            # Demo script
 │
 ├── data/                   # Planned: Sample data and workbooks
-│   ├── workbook.xlsx      # Source workbook (Tickets, KB, etc.)
+│   ├── SupportMind__Final_Data.xlsx      # Source workbook (Tickets, KB, etc.)
 │   └── samples/           # Sample tickets/conversations
 │
 ├── notebooks/              # Planned: Analysis and experimentation

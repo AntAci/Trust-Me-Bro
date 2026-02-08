@@ -1,0 +1,7 @@
+pandas>=2.0,<3
+sqlalchemy>=2.0,<3
+# sqlite3 is built-in with Python; no extra package required
+openpyxl>=3.1,<4
+pydantic>=2.0,<3
+pytest>=8.0,<9
+openai>=1.0,<2
