@@ -21,8 +21,9 @@ from ingestion.workbook_loader import extract_evidence_units, load_workbook_to_d
 
 
 def main() -> None:
+    default_workbook = os.path.join(REPO_ROOT, "Data", "SupportMind__Final_Data.xlsx")
     parser = argparse.ArgumentParser(description="Person 2 demo pipeline")
-    parser.add_argument("--workbook", required=True, help="Path to workbook file")
+    parser.add_argument("--workbook", default=default_workbook, help="Path to workbook file")
     parser.add_argument("--ticket", required=False, help="Ticket_Number to run")
     parser.add_argument("--db", default="trust_me_bro.db", help="SQLite DB path")
     parser.add_argument("--openai-key", default=None, help="Optional OpenAI API key")

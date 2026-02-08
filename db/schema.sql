@@ -138,16 +138,15 @@ CREATE TABLE kb_lineage (
 -- =============================================================================
 CREATE TABLE learning_events (
     event_id TEXT PRIMARY KEY,
+    event_type TEXT,
+    draft_id TEXT,
+    ticket_id TEXT,
+    metadata_json TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
     trigger_ticket_number TEXT,
-    trigger_conversation_id TEXT,
     detected_gap TEXT,
     proposed_kb_article_id TEXT,
-    draft_summary TEXT,
-    final_status TEXT,
-    reviewer_role TEXT,
-    event_timestamp TEXT,
-    event_type TEXT,  -- gap_detected, draft_generated, approved, published, reindexed
-    metadata JSONB    -- stores scores, top-k results, etc.
+    event_timestamp TEXT
 );
 
 -- =============================================================================
@@ -157,5 +156,140 @@ CREATE INDEX idx_tickets_ticket_number ON tickets(ticket_number);
 CREATE INDEX idx_conversations_ticket_number ON conversations(ticket_number);
 CREATE INDEX idx_knowledge_articles_status ON knowledge_articles(status);
 CREATE INDEX idx_existing_kb_title ON existing_knowledge_articles(title);
-CREATE INDEX idx_learning_events_ticket ON learning_events(trigger_ticket_number);
+CREATE INDEX idx_learning_events_ticket ON learning_events(ticket_id);
 CREATE INDEX idx_learning_events_type ON learning_events(event_type);
+
+-- =============================================================================
+-- COMPATIBILITY VIEWS (allow raw_* queries on Postgres)
+-- =============================================================================
+CREATE VIEW raw_tickets AS
+SELECT
+    ticket_number AS "Ticket_Number",
+    conversation_id AS "Conversation_ID",
+    script_id AS "Script_ID",
+    kb_article_id AS "KB_Article_ID",
+    subject AS "Subject",
+    description AS "Description",
+    root_cause AS "Root_Cause",
+    resolution AS "Resolution",
+    status AS "Status",
+    product AS "Product",
+    module AS "Module",
+    category AS "Category"
+FROM tickets;
+
+CREATE VIEW raw_conversations AS
+SELECT
+    conversation_id AS "Conversation_ID",
+    ticket_number AS "Ticket_Number",
+    issue_summary AS "Issue_Summary",
+    transcript AS "Transcript"
+FROM conversations;
+
+CREATE VIEW raw_scripts_master AS
+SELECT
+    script_id AS "Script_ID",
+    script_text_sanitized AS "Script_Text_Sanitized",
+    script_purpose AS "Script_Purpose"
+FROM scripts_master;
+
+CREATE VIEW raw_placeholder_dictionary AS
+SELECT
+    placeholder AS "Placeholder",
+    meaning AS "Meaning",
+    example AS "Example"
+FROM placeholder_dictionary;
+
+-- =============================================================================
+-- MISSING ORM TABLES
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS evidence_units (
+    evidence_unit_id TEXT PRIMARY KEY,
+    source_type TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    field_name TEXT NOT NULL,
+    char_offset_start INTEGER NOT NULL,
+    char_offset_end INTEGER NOT NULL,
+    chunk_index INTEGER NOT NULL,
+    snippet_text TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS kb_drafts (
+    draft_id TEXT PRIMARY KEY,
+    ticket_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body_markdown TEXT NOT NULL,
+    case_json TEXT NOT NULL,
+    status TEXT NOT NULL,
+    reviewer TEXT,
+    reviewed_at TIMESTAMP,
+    review_notes TEXT,
+    published_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS published_kb_articles (
+    kb_article_id TEXT PRIMARY KEY,
+    latest_draft_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body_markdown TEXT NOT NULL,
+    module TEXT NOT NULL,
+    category TEXT NOT NULL,
+    tags_json TEXT,
+    source_type TEXT NOT NULL,
+    source_ticket_id TEXT NOT NULL,
+    current_version INTEGER NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS kb_article_versions (
+    version_id TEXT PRIMARY KEY,
+    kb_article_id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    source_draft_id TEXT,
+    body_markdown TEXT NOT NULL,
+    title TEXT NOT NULL,
+    reviewer TEXT,
+    change_note TEXT,
+    is_rollback BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS kb_lineage_edges (
+    edge_id TEXT PRIMARY KEY,
+    draft_id TEXT NOT NULL,
+    evidence_unit_id TEXT NOT NULL,
+    relationship TEXT NOT NULL,
+    section_label TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_evidence_source ON evidence_units(source_type, source_id);
+CREATE INDEX IF NOT EXISTS idx_kb_drafts_status ON kb_drafts(status);
+CREATE INDEX IF NOT EXISTS idx_kb_drafts_ticket ON kb_drafts(ticket_id);
+
+-- =============================================================================
+-- INDEXABLE ARTICLES VIEW (seed + published learned)
+-- =============================================================================
+CREATE VIEW indexable_articles AS
+SELECT
+    kb_article_id,
+    title,
+    body,
+    product,
+    source_type
+FROM existing_knowledge_articles
+WHERE body IS NOT NULL AND body != ''
+
+UNION ALL
+
+SELECT
+    kb_article_id,
+    title,
+    body_markdown AS body,
+    module AS product,
+    source_type
+FROM published_kb_articles
+WHERE body_markdown IS NOT NULL AND body_markdown != '';

@@ -14,6 +14,12 @@ dist/
 build/
 *.egg
 
+# Virtualenvs
+.venv/
+venv/
+ENV/
+env/
+
 # IDE
 .idea/
 .vscode/
@@ -26,6 +32,21 @@ Thumbs.db
 
 # Index cache (can be regenerated)
 data/index_cache/*.pkl
+
+# Local databases (generated)
+*.db
+*.sqlite
+*.sqlite3
+
+# Test / tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+
+# Cursor
+.cursor/
 
 # Logs
 *.log

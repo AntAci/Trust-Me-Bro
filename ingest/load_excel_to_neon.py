@@ -20,6 +20,7 @@ from pathlib import Path
 import pandas as pd
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
 
 # Load environment variables
 load_dotenv()
@@ -115,6 +116,109 @@ def insert_dataframe(engine, table_name: str, df: pd.DataFrame) -> int:
     return len(df)
 
 
+def extract_evidence_units(engine) -> int:
+    """Extract evidence units from Postgres tables for draft generation."""
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    try:
+        session.execute(text("DELETE FROM evidence_units"))
+        session.commit()
+
+        count = 0
+
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                SELECT ticket_number, subject, description, root_cause, resolution
+                FROM tickets
+            """))
+            for row in result:
+                ticket_id = row[0]
+                for field_idx, field_name in enumerate(
+                    ["Subject", "Description", "Root_Cause", "Resolution"], start=1
+                ):
+                    value = row[field_idx]
+                    if not value or str(value).strip().lower() == "nan":
+                        continue
+                    text_value = str(value)
+                    evidence_unit_id = f"EU-TICKET-{ticket_id}-{field_name}-0"
+                    session.execute(text("""
+                        INSERT INTO evidence_units (
+                            evidence_unit_id,
+                            source_type,
+                            source_id,
+                            field_name,
+                            char_offset_start,
+                            char_offset_end,
+                            chunk_index,
+                            snippet_text
+                        ) VALUES (
+                            :evidence_unit_id,
+                            'TICKET',
+                            :source_id,
+                            :field_name,
+                            0,
+                            :char_offset_end,
+                            0,
+                            :snippet_text
+                        )
+                    """), {
+                        "evidence_unit_id": evidence_unit_id,
+                        "source_id": ticket_id,
+                        "field_name": field_name,
+                        "char_offset_end": len(text_value),
+                        "snippet_text": text_value[:2000],
+                    })
+                    count += 1
+
+            result = conn.execute(text("""
+                SELECT conversation_id, issue_summary, transcript
+                FROM conversations
+            """))
+            for row in result:
+                conversation_id = row[0]
+                for field_idx, field_name in enumerate(
+                    ["Issue_Summary", "Transcript"], start=1
+                ):
+                    value = row[field_idx]
+                    if not value or str(value).strip().lower() == "nan":
+                        continue
+                    text_value = str(value)
+                    evidence_unit_id = f"EU-CONVERSATION-{conversation_id}-{field_name}-0"
+                    session.execute(text("""
+                        INSERT INTO evidence_units (
+                            evidence_unit_id,
+                            source_type,
+                            source_id,
+                            field_name,
+                            char_offset_start,
+                            char_offset_end,
+                            chunk_index,
+                            snippet_text
+                        ) VALUES (
+                            :evidence_unit_id,
+                            'CONVERSATION',
+                            :source_id,
+                            :field_name,
+                            0,
+                            :char_offset_end,
+                            0,
+                            :snippet_text
+                        )
+                    """), {
+                        "evidence_unit_id": evidence_unit_id,
+                        "source_id": conversation_id,
+                        "field_name": field_name,
+                        "char_offset_end": len(text_value),
+                        "snippet_text": text_value[:2000],
+                    })
+                    count += 1
+
+        session.commit()
+        return count
+    finally:
+        session.close()
+
+
 def main():
     parser = argparse.ArgumentParser(description="Load Excel data into Neon Postgres")
     parser.add_argument(
@@ -174,6 +278,10 @@ def main():
             result = conn.execute(text(f"SELECT COUNT(*) FROM {table_name}"))
             count = result.scalar()
             print(f"  {table_name}: {count} rows")
+
+    print("\n📦 Extracting evidence units...")
+    evidence_count = extract_evidence_units(engine)
+    print(f"  ✅ Extracted {evidence_count} evidence units")
 
 
 if __name__ == "__main__":

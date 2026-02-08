@@ -173,18 +173,22 @@ def _log_gap_event(result: GapDetectionResult) -> str:
         conn.execute(text("""
             INSERT INTO learning_events (
                 event_id,
+                event_type,
+                ticket_id,
+                metadata_json,
+                created_at,
                 trigger_ticket_number,
                 detected_gap,
-                event_type,
-                event_timestamp,
-                metadata
+                event_timestamp
             ) VALUES (
                 :event_id,
+                'gap_detected',
+                :ticket_number,
+                :metadata,
+                NOW(),
                 :ticket_number,
                 :detected_gap,
-                'gap_detected',
-                :timestamp,
-                :metadata
+                :timestamp
             )
         """), {
             "event_id": event_id,

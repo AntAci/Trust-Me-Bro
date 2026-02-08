@@ -11,6 +11,8 @@ if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
 from db import get_engine, get_session, init_db
+from db.models import KBDraft, KBLineageEdge
+from generation.lineage import write_lineage_edges
 from generation.publish import export_for_indexer, publish_draft
 
 
@@ -27,6 +29,23 @@ def main() -> None:
     init_db(engine)
     session = get_session(engine)
     try:
+        # Ensure traceability exists for this draft before publishing.
+        draft = (
+            session.query(KBDraft)
+            .filter(KBDraft.draft_id == args.draft_id)
+            .one_or_none()
+        )
+        if not draft:
+            raise ValueError(f"Draft not found: {args.draft_id}")
+        existing_edges = (
+            session.query(KBLineageEdge)
+            .filter(KBLineageEdge.draft_id == args.draft_id)
+            .count()
+        )
+        if existing_edges == 0:
+            case_data = json.loads(draft.case_json or "{}")
+            write_lineage_edges(draft, case_data, session)
+
         article = publish_draft(
             session,
             args.draft_id,

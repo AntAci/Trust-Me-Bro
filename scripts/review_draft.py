@@ -25,15 +25,18 @@ def main() -> None:
     engine = get_engine(args.db)
     init_db(engine)
     session = get_session(engine)
+    output = None
     try:
         if args.action == "approve":
             draft = approve_draft(session, args.draft_id, args.reviewer, args.notes)
         else:
             draft = reject_draft(session, args.draft_id, args.reviewer, args.notes)
+        # Capture fields before session closes (avoid DetachedInstanceError)
+        output = f"{draft.draft_id} status={draft.status} reviewer={draft.reviewer}"
     finally:
         session.close()
 
-    print(f"{draft.draft_id} status={draft.status} reviewer={draft.reviewer}")
+    print(output or f"{args.draft_id} reviewed")
 
 
 if __name__ == "__main__":

@@ -242,19 +242,10 @@ def build_full_index() -> KBIndex:
     database_url = os.getenv("DATABASE_URL")
     engine = create_engine(database_url)
     
-    # Load seed articles
     with engine.connect() as conn:
         result = conn.execute(text("""
-            SELECT kb_article_id, title, body, product, source_type, 'seed' as origin
-            FROM existing_knowledge_articles
-            WHERE body IS NOT NULL AND body != ''
-            
-            UNION ALL
-            
-            SELECT kb_article_id, title, body, module, source_type, 'learned' as origin
-            FROM knowledge_articles
-            WHERE body IS NOT NULL AND body != ''
-              AND status IN ('Active', 'Published')
+            SELECT kb_article_id, title, body, product, source_type
+            FROM indexable_articles
         """))
         rows = result.fetchall()
     

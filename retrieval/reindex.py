@@ -66,16 +66,18 @@ def reindex_on_publish(kb_article_id: str | None = None) -> dict:
         conn.execute(text("""
             INSERT INTO learning_events (
                 event_id,
-                proposed_kb_article_id,
                 event_type,
-                event_timestamp,
-                metadata
+                metadata_json,
+                created_at,
+                proposed_kb_article_id,
+                event_timestamp
             ) VALUES (
                 :event_id,
-                :kb_article_id,
                 'reindexed',
-                :timestamp,
-                :metadata
+                :metadata,
+                NOW(),
+                :kb_article_id,
+                :timestamp
             )
         """), {
             "event_id": event_id,
