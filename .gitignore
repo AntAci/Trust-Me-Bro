@@ -51,5 +51,8 @@ coverage.xml
 # Logs
 *.log
 
+# Generated demo artifacts
+galaxy_cache.json
+
 # Jupyter
 .ipynb_checkpoints/

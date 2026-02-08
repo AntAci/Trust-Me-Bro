@@ -2,9 +2,21 @@
 
 ## Overview
 
-**Trust Me Bro** is a self-updating knowledge engine with human-gated publishing, provenance tracking, and measurable retrieval lift. The system ingests support tickets and conversations, detects knowledge gaps in existing KB articles, generates draft articles with full lineage, and enables human review before publishing. Once published, articles become searchable and improve retrieval quality, with complete traceability from ticket → gap → draft → approval → published article.
+**Trust Me Bro** is a **self-updating knowledge engine for Support** built for the RealPage sponsored track: **Designing a Self-Learning AI System for Support that Builds Trust**.
+
+For **Feature 1 (Self‑Updating Knowledge Engine)**, we go deep on: ingesting support artifacts → extracting auditable evidence → generating KB drafts → **human-gated approval** → **versioned publishing** → **traceability/provenance** (and optional retrieval lift evaluation).
 
 **Demo narrative:** A support ticket arrives → weak KB search results → gap detected → draft KB article generated → human approves → article published → now retrievable with full lineage showing ticket origin and evidence snippets.
+
+## Feature 1 (Self‑Updating Knowledge Engine): what this repo demonstrates
+
+**Goal:** automatically convert resolved tickets + transcripts into reusable KB knowledge, without sacrificing trust.
+
+**Trust guarantees (why you can “trust the update”):**
+- **Evidence units**: every draft is built from stable, inspectable snippets (ticket fields, transcript lines, scripts/runbooks).
+- **Provenance/lineage graph**: KB sections link back to evidence IDs (and therefore to source records).
+- **Governance gate**: drafts are not considered canonical until a human approves.
+- **Versioning**: publishing creates an append-only audit trail (v1, v2, …) so updates never overwrite history.
 
 ## Core Concepts
 
@@ -22,18 +34,25 @@
 - **db/**: SQLite engine, session, and `init_db` with ORM; migration that adds reviewer/reviewed_at/review_notes/published_at to `kb_drafts`. Models: `EvidenceUnit`, `KBDraft`, `KBLineageEdge`, `LearningEvent`, `PublishedKBArticle`, `KBArticleVersion`.
 - **ingestion/workbook_loader.py**: Load Excel workbook (Tickets, Conversations, Scripts_Master, Placeholder_Dictionary) into raw_* tables; extract evidence units with chunking (paragraph/sentence, resolution steps, transcript lines, script text, placeholders). Evidence unit IDs like `EU-TICKET-{id}-{field}-{offset}`.
 - **generation/templates.py**: `render_kb_draft(case_json)` → markdown KB article (Summary, Problem, Environment, Root Cause, Resolution Steps, Verification Steps, Required Inputs, Evidence Sources).
-- **generation/generator.py**: `build_case_bundle(ticket_id, session)`, `build_case_json_deterministic(bundle)`, `build_case_json_llm(bundle, api_key)` (optional OpenAI), `generate_kb_draft(ticket_id, session, api_key)` → draft + CaseJSON; Pydantic `CaseJSON` with steps/placeholders and evidence_unit_ids.
+- **generation/generator.py**: `build_case_bundle(ticket_id, session)`, `build_case_json_deterministic(bundle)`, `generate_kb_draft(..., generation_mode=deterministic|rlm)` → draft + CaseJSON; Pydantic `CaseJSON` with steps/placeholders and evidence_unit_ids.
+- **generation/rlm.py + generation/rlm_verifier.py**: **RLM mode** (Retrieval‑Linked Markdown) that selects evidence for each section and emits an auditable `rlm_trace_json` (optional; requires OpenAI).
+- **generation/openai_client.py**: OpenAI wrapper (model configurable via `OPENAI_MODEL`).
 - **generation/lineage.py**: `write_lineage_edges(draft, case_json, session)` (CREATED_FROM / REFERENCES by section), `get_provenance_report(draft_id, session)` for provenance output.
 - **generation/governance.py**: `get_drafts_by_status`, `approve_draft`, `reject_draft` with status transitions (draft→approved/rejected, approved→published/rejected).
 - **generation/publish.py**: `publish_draft` (create/update published article + append version), `rollback_version`, `get_published_article`, `export_for_indexer(session, kb_article_id)` for indexer payload.
+- **analytics/galaxy.py**: builds a “galaxy” 2D layout for published KBs (for UI exploration / clustering demos).
+- **analytics/grounding.py**: computes grounding signals for a draft or published article.
+- **api_server.py**: FastAPI **Trust Signals API** (metrics, tickets, draft workflow, publishing, provenance, galaxy, grounding).
 - **scripts/demo.py**: One-command SQLite demo for Feature 1 (Self-Updating Knowledge Engine): loads workbook (default `Data/SupportMind__Final_Data.xlsx`), extracts evidence, generates draft, writes lineage, approves, publishes; prints KB draft, CaseJSON, provenance, export payload.
 - **scripts/list_drafts.py**: List drafts by `--status draft|approved|rejected|published|superseded`.
 - **scripts/review_draft.py**: Approve or reject a draft (`--action approve|reject`, `--reviewer`, `--notes`).
 - **scripts/publish_draft.py**: Publish an approved draft (`--reviewer`, `--note`, optional `--kb-article-id` for v2+). Ensures lineage edges exist before publish (traceability preserved).
 - **scripts/show_provenance.py**: Show provenance by `--draft-id` or `--kb-article-id`.
+- **scripts/compute_galaxy.py**: Precompute galaxy JSON (`galaxy_cache.json`) from the SQLite DB.
 - **scripts/run_pipeline.py**: Optional Postgres demo pipeline: gap detect → draft → approve/publish → reindex (requires `DATABASE_URL`).
 - **tests/**: `test_case_json.py` (CaseJSON build/validation), `test_evidence.py` (evidence extraction chunking), `test_lineage.py` (write_lineage_edges from CaseJSON). Run with `pytest tests/`.
 - **requirements.txt**: pandas, sqlalchemy, openpyxl, pydantic, pytest, openai. Data workbook in `Data/SupportMind__Final_Data.xlsx`.
+- **public-web/**: Hackathon demo UI (React + Vite): guided workflow, provenance graph, version history, galaxy visualization, auto-demo.
 
 ## Why BM25 Over Embeddings?
 
@@ -165,6 +184,10 @@ Trust-Me-Bro/
 │   ├── publish_draft.py
 │   └── show_provenance.py
 │
+├── public-web/                 # Hackathon demo UI (React/Vite)
+│   ├── src/
+│   └── index.html
+│
 ├── Data/                       # Source workbook (SQLite demo)
 │   └── SupportMind__Final_Data.xlsx
 │
@@ -195,11 +218,12 @@ Trust-Me-Bro/
 | `gap/` | Gap detection + logging | `detect_gap()` → logs to `learning_events` |
 | `eval/` | Before/after evaluation | `run_before_after_evaluation()` |
 
-**Backend Person 2 / UI (Draft Generation & Review):** 🔜 PLANNED
-| Module | Purpose | Suggested Location |
-|--------|---------|-------------------|
-| `generation/` | Generate KB drafts from evidence | `generator.py`, `lineage.py` |
-| `ui/` | Review interface, lineage viz | `app.py`, `templates/`, `routes/` |
+**Backend Person 2 / UI (Draft Generation & Review):** ✅ IMPLEMENTED (Web demo)
+| Module | Purpose | Main Entrypoints |
+|--------|---------|------------------|
+| `generation/` | Generate KB drafts + lineage | `generate_kb_draft()`, `write_lineage_edges()` |
+| `api_server.py` | REST API for UI | `/api/tickets`, `/api/drafts/*`, `/api/provenance`, `/api/galaxy` |
+| `public-web/` | Demo UI & governance workflow | Dashboard, Guided Flow, Provenance, Versions, Galaxy |
 
 ## Data Model (Workbook → DB Tables)
 
@@ -276,14 +300,14 @@ The schema uses permissive TEXT fields to ensure ingestion never fails.
    - Logs `learning_event` with `event_type='gap_detected'`
    - Stores scores and top-k in `metadata` JSONB
 
-5. **Generate KB Draft** 🔜 (Person 2)
-   - Collect evidence snippets from ticket/conversations
-   - Apply template → generate draft
-   - Write `KB_Lineage` edges
+5. **Generate KB Draft** ✅
+   - Collect evidence snippets from ticket/conversations/scripts/placeholders
+   - Generate via deterministic or **RLM** mode
+   - Write lineage edges (`kb_lineage_edges`) for traceability
 
-6. **Review/Approve** 🔜 (Person 2)
-   - UI displays draft with evidence and lineage
-   - Human approves → `status='Published'`
+6. **Review/Approve** ✅
+   - Review in UI (Guided Flow) or CLI (`scripts/review_draft.py`)
+   - Human approves → eligible for publish (drafts are never “live” until publish)
 
 7. **Publish + Reindex** ✅
    ```python
@@ -304,19 +328,33 @@ The schema uses permissive TEXT fields to ensure ingestion never fails.
 ### Prerequisites
 
 ```bash
-# Create conda environment
-conda create -n trustmebro python=3.12 -y
-conda activate trustmebro
-
-# Install dependencies
+# Python 3.12+
+# Create an environment (conda OR venv) and install deps
 pip install -r requirements.txt
 ```
+
+### Web demo UI (frontend)
+
+```bash
+cd public-web
+npm install
+npm run dev
+```
+
+The UI reads the backend URL from `VITE_API_URL` (defaults to `http://localhost:8000`). The dev server runs on `http://localhost:8080`.
 
 ### SQLite demo pipeline (draft generation)
 
 ```bash
-# Full demo: load workbook, extract evidence, generate one draft, approve, publish (uses first closed ticket if --ticket omitted)
-python scripts/demo.py --workbook Data/SupportMind__Final_Data.xlsx [--ticket TICKET_ID] [--db trust_me_bro.db] [--openai-key KEY]
+# Full demo: load workbook, extract evidence, generate draft, lineage, approve, publish
+# Uses first closed ticket if --ticket omitted
+python scripts/demo.py --workbook Data/SupportMind__Final_Data.xlsx [--ticket TICKET_ID] [--db trust_me_bro.db]
+
+# Optional: RLM mode (uses OPENAI_API_KEY from env)
+python scripts/demo.py --db trust_me_bro.db --ticket CS-38908386 --generation-mode rlm
+
+# Optional: deterministic + OpenAI enhancement (explicit key)
+python scripts/demo.py --db trust_me_bro.db --ticket CS-38908386 --openai-key YOUR_KEY
 
 # List drafts by status
 python scripts/list_drafts.py --status draft   # or approved | rejected | published | superseded
@@ -331,6 +369,9 @@ python scripts/publish_draft.py <draft_id> --reviewer "Name" [--note "Initial pu
 python scripts/show_provenance.py --draft-id <draft_id>
 python scripts/show_provenance.py --kb-article-id <kb_article_id>
 
+# Precompute galaxy JSON (for UI / exploration)
+python scripts/compute_galaxy.py --db trust_me_bro.db --limit 800 --seed 42 --output galaxy_cache.json
+
 # Run tests
 pytest tests/
 ```
@@ -338,14 +379,17 @@ pytest tests/
 ### Trust Signals API (local)
 
 ```bash
-uvicorn api_server:app --reload --port 8000
+DB_PATH=trust_me_bro.db uvicorn api_server:app --reload --port 8000
 ```
 
 Example calls:
 
 ```bash
 curl http://localhost:8000/api/metrics
+curl "http://localhost:8000/api/tickets?limit=10&search=CS-"
+curl -X POST http://localhost:8000/api/drafts/generate -H "Content-Type: application/json" -d "{\"ticket_id\":\"CS-38908386\",\"generation_mode\":\"rlm\"}"
 curl "http://localhost:8000/api/galaxy?limit=200&seed=42"
+curl "http://localhost:8000/api/provenance?kb_article_id=<kb_article_id>"
 curl http://localhost:8000/api/drafts/<draft_id>/grounding
 curl http://localhost:8000/api/articles/<kb_article_id>/grounding
 ```
@@ -498,14 +542,13 @@ Avg score improvement: +45.23
 
 ### Phase 2: Governance & Versioning
 - ✅ Rollback capability (publish.rollback_version)
-- Versioning UI (view article history)
-- Multi-reviewer workflow
-- Approval chains
-- Lineage visualization (graph view)
-- Evidence snippet highlighting
+- ✅ Versioning UI (view article history)
+- ✅ Lineage visualization (provenance graph)
+- Evidence snippet highlighting (deeper per-claim grounding UX)
 
 ### Phase 3: Scale & Dashboard
-- Real-time ingestion (API endpoints)
+- ✅ UI-facing API endpoints (tickets, drafts, publish, provenance, galaxy)
+- Real-time ingestion (streaming conversations)
 - Advanced gap detection (embeddings + ML)
 - Evaluation dashboard
 - A/B testing framework
@@ -539,7 +582,3 @@ Avg score improvement: +45.23
 ## License
 
 **License TBD** — To be determined.
-
----
-
-**Note:** This README covers both BM25 gap detection and draft generation flows. The core pipeline is implemented; UI review and lineage visualization are still planned.
