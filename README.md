@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/hero.png" alt="Trust Me Bro - Knowledge bases that learn only when they're sure" width="100%">
+</p>
+
 <h1 align="center">🛡️ Trust Me Bro</h1>
 
 <p align="center">
