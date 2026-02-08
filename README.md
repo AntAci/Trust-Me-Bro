@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="docs/hero.png" alt="Trust Me Bro - Knowledge bases that learn only when they're sure" width="100%">
-</p>
-
 <h1 align="center">🛡️ Trust Me Bro</h1>
 
 <p align="center">
@@ -13,6 +9,10 @@
   <img src="https://img.shields.io/badge/Zero-Hallucinations-00d4aa?style=for-the-badge" alt="Zero Hallucinations">
   <img src="https://img.shields.io/badge/100%25-Traceable-8b5cf6?style=for-the-badge" alt="100% Traceable">
   <img src="https://img.shields.io/badge/Human-Gated-ec4899?style=for-the-badge" alt="Human-Gated">
+</p>
+
+<p align="center">
+  <img src="docs/hero.png" alt="Trust Me Bro - Knowledge bases that learn only when they're sure" width="100%">
 </p>
 
 <p align="center">
