@@ -17,7 +17,7 @@
 
 **Trust Core:** Every published article includes evidence snippets (source ticket excerpts), full traceability (lineage graph), and append-only version history (immutable audit trail).
 
-## What We Completed
+## What We Completed (Final)
 
 - **db/**: SQLite engine, session, and `init_db` with ORM; migration that adds reviewer/reviewed_at/review_notes/published_at to `kb_drafts`. Models: `EvidenceUnit`, `KBDraft`, `KBLineageEdge`, `LearningEvent`, `PublishedKBArticle`, `KBArticleVersion`.
 - **ingestion/workbook_loader.py**: Load Excel workbook (Tickets, Conversations, Scripts_Master, Placeholder_Dictionary) into raw_* tables; extract evidence units with chunking (paragraph/sentence, resolution steps, transcript lines, script text, placeholders). Evidence unit IDs like `EU-TICKET-{id}-{field}-{offset}`.
@@ -26,11 +26,12 @@
 - **generation/lineage.py**: `write_lineage_edges(draft, case_json, session)` (CREATED_FROM / REFERENCES by section), `get_provenance_report(draft_id, session)` for provenance output.
 - **generation/governance.py**: `get_drafts_by_status`, `approve_draft`, `reject_draft` with status transitions (draft→approved/rejected, approved→published/rejected).
 - **generation/publish.py**: `publish_draft` (create/update published article + append version), `rollback_version`, `get_published_article`, `export_for_indexer(session, kb_article_id)` for indexer payload.
-- **scripts/demo.py**: Full pipeline for one ticket: load workbook, extract evidence, generate draft, write lineage, approve, publish; prints draft body, CaseJSON, provenance, export payload. Uses `Data/SupportMind__Final_Data.xlsx` with `--workbook`.
+- **scripts/demo.py**: One-command SQLite demo for Feature 1 (Self-Updating Knowledge Engine): loads workbook (default `Data/SupportMind__Final_Data.xlsx`), extracts evidence, generates draft, writes lineage, approves, publishes; prints KB draft, CaseJSON, provenance, export payload.
 - **scripts/list_drafts.py**: List drafts by `--status draft|approved|rejected|published|superseded`.
 - **scripts/review_draft.py**: Approve or reject a draft (`--action approve|reject`, `--reviewer`, `--notes`).
-- **scripts/publish_draft.py**: Publish an approved draft (`--reviewer`, `--note`, optional `--kb-article-id` for new version).
+- **scripts/publish_draft.py**: Publish an approved draft (`--reviewer`, `--note`, optional `--kb-article-id` for v2+). Ensures lineage edges exist before publish (traceability preserved).
 - **scripts/show_provenance.py**: Show provenance by `--draft-id` or `--kb-article-id`.
+- **scripts/run_pipeline.py**: Optional Postgres demo pipeline: gap detect → draft → approve/publish → reindex (requires `DATABASE_URL`).
 - **tests/**: `test_case_json.py` (CaseJSON build/validation), `test_evidence.py` (evidence extraction chunking), `test_lineage.py` (write_lineage_edges from CaseJSON). Run with `pytest tests/`.
 - **requirements.txt**: pandas, sqlalchemy, openpyxl, pydantic, pytest, openai. Data workbook in `Data/SupportMind__Final_Data.xlsx`.
 
@@ -113,9 +114,9 @@ Embeddings are designed to find things that are "kind of similar in meaning." Th
 ```
 
 **Two Indices Concept:**
-- **Seed Index**: Contains only `existing_knowledge_articles` (3,046 baseline articles).
-- **Full Index**: Contains seed + `knowledge_articles` WHERE `status IN ('Active', 'Published')`.
-- **Drafts**: NEVER indexed. Only published/approved KBs enter the searchable index.
+- **Seed Index**: Contains only `existing_knowledge_articles` (baseline articles).
+- **Full Index**: Seed + published learned KBs (via `indexable_articles` on Postgres; SQLite demo publishes into `published_kb_articles`).
+- **Drafts**: NEVER indexed. Only published KBs enter the searchable index.
 
 ## Repository Structure
 
@@ -359,8 +360,47 @@ python -m eval.before_after --batch --limit 10
 python -m retrieval.reindex
 ```
 
-## Demo Script
-**Status:** Demo script is implemented in `scripts/demo.py`. Run: `python scripts/demo.py --workbook Data/SupportMind__Final_Data.xlsx [--ticket TICKET_ID] [--openai-key KEY]`. It loads the workbook, extracts evidence, generates one draft, writes lineage, approves, publishes, and prints draft body, CaseJSON, provenance, and export payload.
+## Demo Script (Feature 1: Self-Updating Knowledge Engine)
+**Status:** Demo script is implemented in `scripts/demo.py`.
+
+### Quickstart (SQLite, no DATABASE_URL)
+Runs the full loop: resolved ticket + transcript → draft → approve → publish, with provenance and versioning support.
+
+```bash
+python scripts/demo.py --db trust_me_bro.db
+```
+
+Optional:
+
+```bash
+python scripts/demo.py --db trust_me_bro.db --ticket CS-38908386
+python scripts/demo.py --db trust_me_bro.db --openai-key YOUR_KEY
+```
+
+### Versioning demo (publish v2 of the same KB)
+1) Generate a new draft for the same ticket (prints a `draft_id`):
+
+```bash
+python -c "import sys; sys.path.insert(0,'.'); from db import get_engine,get_session,init_db; from generation.generator import generate_kb_draft; engine=get_engine('trust_me_bro.db'); init_db(engine); s=get_session(engine); d,_=generate_kb_draft('CS-38908386', s); print(d.draft_id); s.close()"
+```
+
+2) Approve the draft:
+
+```bash
+python scripts/review_draft.py <draft_id> --action approve --reviewer \"Demo\" --db trust_me_bro.db
+```
+
+3) Publish as v2 by passing `--kb-article-id`:
+
+```bash
+python scripts/publish_draft.py <draft_id> --reviewer \"Demo\" --kb-article-id <kb_article_id> --note \"v2 update\" --db trust_me_bro.db
+```
+
+4) Show provenance (traceability):
+
+```bash
+python scripts/show_provenance.py --kb-article-id <kb_article_id> --db trust_me_bro.db
+```
 
 ### Hackathon Demo Sequence
 
