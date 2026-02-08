@@ -1,9 +1,9 @@
-import { useRef, useEffect, useState, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useKnowledgeMapState } from './useKnowledgeMapState';
-import { useCanvasAnimation } from './useCanvasAnimation';
-import { useDemoMode } from '@/contexts/DemoModeContext';
-import { Particle, Spark } from './mapConfig';
+import { useRef, useEffect, useState, useCallback } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useKnowledgeMapState } from "./useKnowledgeMapState";
+import { useCanvasAnimation } from "./useCanvasAnimation";
+import { useDemoMode } from "@/contexts/DemoModeContext";
+import { BackgroundDot } from "./mapConfig";
 
 export function LivingKnowledgeMap() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -50,28 +50,21 @@ export function LivingKnowledgeMap() {
     }
   }, [knowledgeMapState.phase, mapState]);
   
-  const updateParticles = useCallback(
-    (particles: Particle[]) => {
-      mapState.setParticles(particles);
+  const updateDots = useCallback(
+    (dots: BackgroundDot[]) => {
+      mapState.setDots(dots);
     },
     [mapState]
   );
-  
-  const updateSparks = useCallback(
-    (sparks: Spark[]) => {
-      mapState.setSparks(sparks);
-    },
-    [mapState]
-  );
-  
-  useCanvasAnimation(canvasRef, mapState, updateParticles, updateSparks);
+
+  useCanvasAnimation(canvasRef, mapState, updateDots);
   
   return (
     <Card className="overflow-hidden border-primary/10 tmb-hero">
       <CardHeader className="pb-2">
         <CardTitle className="text-lg font-semibold">Living Knowledge Map</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Watch tickets become governed, versioned knowledge — with traceability.
+          A read-only knowledge map that tracks published knowledge.
         </p>
       </CardHeader>
       <CardContent className="p-0">
@@ -82,24 +75,8 @@ export function LivingKnowledgeMap() {
             style={{ display: 'block' }}
           />
           
-          {/* Legend */}
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-4 px-4 py-2 rounded-full bg-background/80 backdrop-blur-sm border text-xs">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-warning" />
-              <span className="text-muted-foreground">Tickets</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-primary" />
-              <span className="text-muted-foreground">Drafts</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-success" />
-              <span className="text-muted-foreground">Published</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3.5 h-3.5 rounded-full border-2 border-success/40" />
-              <span className="text-muted-foreground">Versions</span>
-            </div>
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-2 rounded-full bg-background/80 backdrop-blur-sm border text-xs">
+            <span className="text-muted-foreground">Read-only map • v1 → v2 updates</span>
           </div>
         </div>
         

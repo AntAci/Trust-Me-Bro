@@ -23,8 +23,13 @@ def build_case_bundle(ticket_id: str, session: Session) -> Dict[str, Any]:
     if engine is None:
         raise ValueError("Session is not bound to an engine")
 
+    if engine.dialect.name == "sqlite":
+        ticket_query = "SELECT * FROM tickets WHERE ticket_number = :ticket_id"
+    else:
+        ticket_query = "SELECT * FROM raw_tickets WHERE Ticket_Number = :ticket_id"
+
     ticket_df = pd.read_sql_query(
-        "SELECT * FROM raw_tickets WHERE Ticket_Number = :ticket_id",
+        ticket_query,
         engine,
         params={"ticket_id": ticket_id},
     )
@@ -32,13 +37,18 @@ def build_case_bundle(ticket_id: str, session: Session) -> Dict[str, Any]:
         raise ValueError(f"Ticket not found: {ticket_id}")
     ticket = ticket_df.iloc[0].to_dict()
 
+    if engine.dialect.name == "sqlite":
+        convo_query = "SELECT * FROM conversations WHERE ticket_number = :ticket_id"
+    else:
+        convo_query = "SELECT * FROM raw_conversations WHERE Ticket_Number = :ticket_id"
+
     conversations = pd.read_sql_query(
-        "SELECT * FROM raw_conversations WHERE Ticket_Number = :ticket_id",
+        convo_query,
         engine,
         params={"ticket_id": ticket_id},
     ).to_dict(orient="records")
 
-    script_id = ticket.get("Script_ID")
+    script_id = ticket.get("Script_ID") if engine.dialect.name != "sqlite" else ticket.get("script_id")
     scripts = []
     if script_id:
         scripts = pd.read_sql_query(
@@ -53,7 +63,10 @@ def build_case_bundle(ticket_id: str, session: Session) -> Dict[str, Any]:
     ).to_dict(orient="records")
 
     source_ids = [ticket_id]
-    source_ids.extend([c.get("Conversation_ID") for c in conversations if c.get("Conversation_ID")])
+    conversation_id_key = "Conversation_ID" if engine.dialect.name != "sqlite" else "conversation_id"
+    source_ids.extend(
+        [c.get(conversation_id_key) for c in conversations if c.get(conversation_id_key)]
+    )
     if script_id:
         source_ids.append(script_id)
 
@@ -83,11 +96,11 @@ def build_case_json_deterministic(bundle: Dict[str, Any]) -> CaseJSON:
     placeholders = bundle["placeholders"]
     evidence_units = bundle["evidence_units"]
 
-    ticket_id = str(ticket.get("Ticket_Number", "")).strip()
-    title = str(ticket.get("Subject", "")).strip() or "Untitled"
-    product = str(ticket.get("Product", "")).strip() or "N/A"
-    module = str(ticket.get("Module", "")).strip() or "N/A"
-    category = str(ticket.get("Category", "")).strip() or "N/A"
+    ticket_id = str(ticket.get("Ticket_Number") or ticket.get("ticket_number") or "").strip()
+    title = str(ticket.get("Subject") or ticket.get("subject") or "").strip() or "Untitled"
+    product = str(ticket.get("Product") or ticket.get("product") or "").strip() or "N/A"
+    module = str(ticket.get("Module") or ticket.get("module") or "").strip() or "N/A"
+    category = str(ticket.get("Category") or ticket.get("category") or "").strip() or "N/A"
 
     evidence_by_field = _group_evidence_by_field(evidence_units)
 

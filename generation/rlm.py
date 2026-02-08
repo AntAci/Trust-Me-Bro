@@ -165,34 +165,78 @@ def _load_ticket_context(
     if engine is None:
         raise ValueError("Session is not bound to an engine")
 
-    ticket_df = pd.read_sql_query(
-        "SELECT * FROM raw_tickets WHERE Ticket_Number = :ticket_id",
-        engine,
-        params={"ticket_id": ticket_id},
-    )
-    if ticket_df.empty:
+    is_sqlite = engine.dialect.name == "sqlite"
+    ticket_df = None
+    use_synthetic = False
+
+    # Try raw_tickets first (original data)
+    try:
+        ticket_df = pd.read_sql_query(
+            "SELECT * FROM raw_tickets WHERE Ticket_Number = :ticket_id",
+            engine,
+            params={"ticket_id": ticket_id},
+        )
+    except Exception:
+        ticket_df = pd.DataFrame()
+
+    # If not found, try synthetic tickets table
+    if ticket_df.empty and is_sqlite:
+        try:
+            ticket_df = pd.read_sql_query(
+                "SELECT * FROM tickets WHERE ticket_number = :ticket_id",
+                engine,
+                params={"ticket_id": ticket_id},
+            )
+            if not ticket_df.empty:
+                use_synthetic = True
+        except Exception:
+            pass
+
+    if ticket_df is None or ticket_df.empty:
         raise ValueError(f"Ticket not found: {ticket_id}")
     ticket = ticket_df.iloc[0].to_dict()
 
-    conversations = pd.read_sql_query(
-        "SELECT * FROM raw_conversations WHERE Ticket_Number = :ticket_id",
-        engine,
-        params={"ticket_id": ticket_id},
-    ).to_dict(orient="records")
+    # Get conversations from matching table
+    conversations = []
+    if use_synthetic:
+        try:
+            conversations = pd.read_sql_query(
+                "SELECT * FROM conversations WHERE ticket_number = :ticket_id",
+                engine,
+                params={"ticket_id": ticket_id},
+            ).to_dict(orient="records")
+        except Exception:
+            pass
+    else:
+        try:
+            conversations = pd.read_sql_query(
+                "SELECT * FROM raw_conversations WHERE Ticket_Number = :ticket_id",
+                engine,
+                params={"ticket_id": ticket_id},
+            ).to_dict(orient="records")
+        except Exception:
+            pass
 
-    script_id = ticket.get("Script_ID")
+    script_id = ticket.get("Script_ID") or ticket.get("script_id")
     scripts = []
     if script_id:
-        scripts = pd.read_sql_query(
-            "SELECT * FROM raw_scripts_master WHERE Script_ID = :script_id",
-            engine,
-            params={"script_id": script_id},
-        ).to_dict(orient="records")
+        try:
+            scripts = pd.read_sql_query(
+                "SELECT * FROM raw_scripts_master WHERE Script_ID = :script_id",
+                engine,
+                params={"script_id": script_id},
+            ).to_dict(orient="records")
+        except Exception:
+            pass
 
-    placeholders = pd.read_sql_query(
-        "SELECT * FROM raw_placeholder_dictionary",
-        engine,
-    ).to_dict(orient="records")
+    placeholders = []
+    try:
+        placeholders = pd.read_sql_query(
+            "SELECT * FROM raw_placeholder_dictionary",
+            engine,
+        ).to_dict(orient="records")
+    except Exception:
+        pass
 
     return ticket, conversations, scripts, placeholders
 

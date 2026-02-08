@@ -21,6 +21,40 @@ This document explains the full pipeline, the algorithms used, and what each fil
    - Append a row to `kb_article_versions` (append-only audit trail)
 8. Repeat publish on the same `kb_article_id` to produce **v2+** (self-updating via versioning)
 
+### Web demo (public-web) path (judge-friendly UI)
+
+This is the **hackathon demo experience**: the same pipeline, but driven through a UI that surfaces trust signals.
+
+**Pages and what they show**
+
+- **Dashboard** (`/`)
+  - Live metrics from `GET /api/metrics`
+  - **Living Knowledge Map** animation that visually follows the workflow phases (generate → gate → publish v1 → publish v2)
+  - **Auto Demo** button that runs the end-to-end flow in ~15 seconds
+- **Guided Flow** (`/flow`)
+  - Step 1: Select ticket (from `GET /api/tickets`)
+  - Step 2: Generate draft (calls `POST /api/drafts/generate`)
+  - Step 3: Review governance gate (calls `POST /api/drafts/{id}/approve` or `/reject`)
+  - Step 4: Publish v1 (calls `POST /api/drafts/{id}/publish`)
+  - Step 5: Publish v2 update (demo path: `POST /api/demo/publish_v2`)
+  - Live previews: provenance + versions drawers
+- **Provenance** (`/provenance`)
+  - Provenance graph for a published KB article (`GET /api/provenance?kb_article_id=...`)
+  - Evidence drawer to inspect snippets (`GET /api/provenance/evidence?...`)
+- **Version History** (`/versions`)
+  - Append-only version timeline (`GET /api/articles/{kb_article_id}/versions`)
+  - Visual “what changed” summary derived from markdown headings
+- **Galaxy** (`/galaxy`)
+  - Semantic “knowledge galaxy” layout from `GET /api/galaxy`
+  - Clusters tickets/drafts/articles/versions via TF‑IDF + SVD (visual exploration & wow factor)
+
+**What a judge should see in 60 seconds**
+
+1. Dashboard metrics moving + Living Knowledge Map animating
+2. Auto demo runs Guided Flow end-to-end
+3. After publish, Provenance and Versions prove the system is auditable and append‑only
+4. Galaxy shows semantic clustering (knowledge becomes a “map”)
+
 ### Optional Postgres path (Neon) for “production-like” demos
 
 Same concept, but the workbook is loaded to Postgres and a minimal orchestrator runs:
@@ -45,6 +79,11 @@ SQLite demo pipeline:
   lineage.py         → kb_lineage_edges (section → evidence_unit_id)
   governance.py      → approve/reject (status transitions)
   publish.py         → published_kb_articles + kb_article_versions
+
+Web demo (public-web):
+  public-web (React/Vite) → calls FastAPI endpoints
+  api_server.py           → serves tickets/drafts/publish/provenance/galaxy/metrics
+  UI pages                → Dashboard + Guided Flow + Provenance + Versions + Galaxy
 
 Postgres pipeline (optional):
   ingest/load_excel_to_neon.py → Postgres tables + evidence_units
@@ -106,6 +145,16 @@ This makes provenance **auditable** and **inspectable**.
 - `build_case_json_llm(bundle, api_key=...)`
 - If OpenAI is configured, attempts JSON-only output; falls back to deterministic if invalid.
 - Enforces “evidence_unit_ids must come from known IDs” for safety.
+
+**RLM (Recursive Language Model) path**
+
+- `generation/rlm.py` builds the CaseJSON **section-by-section** from evidence candidates.
+- Optional OpenAI synthesis is used to produce concise text + selected evidence IDs.
+- `generation/rlm_verifier.py` validates:
+  - evidence_unit_ids exist
+  - required sections exist
+  - no invalid reuse/duplication
+  - every section is backed by evidence IDs
 
 **Rendering**
 
@@ -209,6 +258,38 @@ ORM models live in `db/models.py` and are created via `db/init_db()`:
 Plus `raw_*` tables created by workbook ingestion:
 
 - `raw_tickets`, `raw_conversations`, `raw_scripts_master`, `raw_placeholder_dictionary`
+
+---
+
+## 5) FastAPI surface (UI integration)
+
+The UI in `public-web/` expects and uses these endpoints:
+
+### Metrics / demo visuals
+- `GET /api/metrics`
+  - dashboard counters: tickets, evidence units, drafts by status, published count, provenance edges
+- `GET /api/galaxy`
+  - nodes/edges for the Galaxy page (TF‑IDF + SVD layout)
+
+### Guided Flow endpoints
+- `GET /api/tickets?limit=...&search=...`
+- `POST /api/drafts/generate`
+  - generates a draft and writes lineage edges so provenance is ready immediately
+- `GET /api/drafts/{draft_id}`
+- `POST /api/drafts/{draft_id}/approve`
+- `POST /api/drafts/{draft_id}/reject`
+- `POST /api/drafts/{draft_id}/publish`
+  - v1 publish (new kb_article_id) or v2+ update (pass existing kb_article_id)
+
+### Trust/audit endpoints
+- `GET /api/articles/{kb_article_id}/versions`
+- `GET /api/provenance?kb_article_id=...`
+- `GET /api/provenance/evidence?kb_article_id=...&section_label=...&source_type=...&limit=...&offset=...`
+
+### Demo shortcut for v2+
+- `POST /api/demo/publish_v2`
+  - convenience endpoint for the demo UI to publish an update version from a ticket
+
 
 ### Postgres (optional)
 

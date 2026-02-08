@@ -1,4 +1,4 @@
-import { LayoutDashboard, GitBranch, Network, History, Sparkles } from "lucide-react";
+import { LayoutDashboard, Plug, Network, History, Sparkles } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 
@@ -17,7 +17,7 @@ import {
 
 const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Guided Flow", url: "/flow", icon: GitBranch },
+  { title: "Plugin Demo", url: "/plugin", icon: Plug },
   { title: "Galaxy", url: "/galaxy", icon: Sparkles },
   { title: "Provenance", url: "/provenance", icon: Network },
   { title: "Version History", url: "/versions", icon: History },

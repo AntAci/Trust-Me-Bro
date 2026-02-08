@@ -33,10 +33,11 @@ export function useAutoDemo(options: UseAutoDemoOptions = {}) {
     approveDraft?: () => void;
     publishV1?: () => void;
     publishV2?: () => void;
+    openProvenance?: () => void;
   }>({});
 
   const registerStepCallback = useCallback((
-    step: "selectTicket" | "generateDraft" | "approveDraft" | "publishV1" | "publishV2",
+    step: "selectTicket" | "generateDraft" | "approveDraft" | "publishV1" | "publishV2" | "openProvenance",
     callback: () => void
   ) => {
     stepCallbacksRef.current[step] = callback;
@@ -83,7 +84,7 @@ export function useAutoDemo(options: UseAutoDemoOptions = {}) {
         emit("auto-demo:publish-v1");
       }
     },
-    { 
+    {
       id: 5, 
       name: "Publish v2", 
       duration: 2500,
@@ -91,6 +92,15 @@ export function useAutoDemo(options: UseAutoDemoOptions = {}) {
         stepCallbacksRef.current.publishV2?.();
         emit("auto-demo:publish-v2");
       }
+    },
+    {
+      id: 6,
+      name: "Provenance Proof",
+      duration: 1500,
+      action: () => {
+        stepCallbacksRef.current.openProvenance?.();
+        emit("auto-demo:open-provenance");
+      },
     },
   ];
 
@@ -122,8 +132,8 @@ export function useAutoDemo(options: UseAutoDemoOptions = {}) {
     // Enable demo mode
     setIsDemoMode(true);
     
-    // Navigate to flow
-    navigate("/flow");
+    // Navigate to plugin demo
+    navigate("/plugin");
 
     // Start after a brief delay for navigation
     setTimeout(() => {

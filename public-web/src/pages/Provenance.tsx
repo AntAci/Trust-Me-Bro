@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -84,10 +84,10 @@ const convertToSelectedGroup = (group: GroupedProvenance): SelectedGroup => ({
   count: group.count,
 });
 
-export default function Provenance() {
+export default function Provenance({ kbArticleId: kbArticleIdProp }: { kbArticleId?: string }) {
   const [searchParams] = useSearchParams();
   const { isDemoMode } = useDemoMode();
-  const kbArticleId = searchParams.get("kb_article_id") || "kb-001";
+  const kbArticleId = kbArticleIdProp || searchParams.get("kb_article_id") || "kb-001";
   const [selectedGroup, setSelectedGroup] = useState<SelectedGroup | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showBuildAnimation, setShowBuildAnimation] = useState(isDemoMode);
@@ -222,6 +222,11 @@ export default function Provenance() {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
+  useEffect(() => {
+    setNodes(initialNodes);
+    setEdges(initialEdges);
+  }, [initialNodes, initialEdges, setNodes, setEdges]);
+
   // Fetch evidence units for selected group
   const { data: evidenceData, isLoading: evidenceLoading } = useQuery({
     queryKey: ["evidence", kbArticleId, selectedGroup?.sectionLabel, selectedGroup?.sourceType],
@@ -324,6 +329,11 @@ export default function Provenance() {
             edgesReconnectable={false}
             panOnScroll
             zoomOnScroll
+            onNodeClick={(_, node) => {
+              if (node.type === "evidenceGroup" && typeof node.data?.onClick === "function") {
+                node.data.onClick();
+              }
+            }}
           >
             <Background />
             <Controls showInteractive={false} />

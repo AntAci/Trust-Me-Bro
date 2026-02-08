@@ -204,10 +204,10 @@ export default function Dashboard() {
         <Button
           size="lg"
           className="gap-2"
-          onClick={() => navigate("/flow")}
+          onClick={() => navigate("/plugin")}
         >
           <Sparkles className="h-4 w-4" />
-          Start Demo
+          Open Plugin Demo
           <ArrowRight className="h-4 w-4" />
         </Button>
       </div>

@@ -138,9 +138,9 @@ function extractSection(markdown: string, heading: string): string {
   return match ? match[1].trim() : "";
 }
 
-export default function VersionHistory() {
+export default function VersionHistory({ kbArticleId: kbArticleIdProp }: { kbArticleId?: string }) {
   const [searchParams] = useSearchParams();
-  const kbArticleId = searchParams.get("kb_article_id") || "kb-001";
+  const kbArticleId = kbArticleIdProp || searchParams.get("kb_article_id") || "kb-001";
   const [selectedVersion, setSelectedVersion] = useState<ArticleVersion | null>(null);
 
   // Fetch versions

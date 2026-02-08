@@ -1,6 +1,8 @@
 // API client for FastAPI backend
 // Default to localhost:8000, can be overridden via environment variable
 
+import type { DemoScenario, TranscriptMessage } from "@/lib/mockData";
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 interface ApiError {
@@ -172,6 +174,11 @@ export const api = {
     return fetchApi<Ticket[]>(`/api/tickets${query ? `?${query}` : ""}`);
   },
 
+  getTicketTranscript: (ticketId: string) =>
+    fetchApi<{ ticket_id: string; transcript: TranscriptMessage[] }>(
+      `/api/tickets/${ticketId}/transcript`
+    ),
+
   // Drafts
   generateDraft: (ticketId: string) =>
     fetchApi<{ draft_id: string; draft: Draft }>("/api/drafts/generate", {
@@ -210,6 +217,20 @@ export const api = {
         }),
       }
     ),
+
+  generateSyntheticScenario: (params: {
+    mode: "new" | "v2_update";
+    existingKbContext?: string;
+    categoryHint?: string;
+  }) =>
+    fetchApi<DemoScenario>("/api/demo/generate-scenario", {
+      method: "POST",
+      body: JSON.stringify({
+        mode: params.mode,
+        existing_kb_context: params.existingKbContext,
+        category_hint: params.categoryHint,
+      }),
+    }),
 
   // Articles
   getArticle: (kbArticleId: string) =>
