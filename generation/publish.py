@@ -102,6 +102,12 @@ def publish_draft(
         },
     )
     session.commit()
+    try:
+        from generation.galaxy import recompute_galaxy_points
+
+        recompute_galaxy_points(session)
+    except Exception:
+        pass
     return article
 
 

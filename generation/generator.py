@@ -8,41 +8,14 @@ from datetime import datetime
 from typing import Any, Dict, Iterable, List, Optional
 
 import pandas as pd
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from db.models import EvidenceUnit, KBDraft, LearningEvent
+from generation.case_models import CaseJSON, PlaceholderNeed, Step
 from generation.governance import supersede_other_drafts
+from generation.rlm import build_case_json_rlm
 from generation.templates import render_kb_draft
-
-
-class Step(BaseModel):
-    text: str
-    evidence_unit_ids: List[str] = Field(default_factory=list)
-
-
-class PlaceholderNeed(BaseModel):
-    placeholder: str
-    meaning: str
-    evidence_unit_ids: List[str] = Field(default_factory=list)
-
-
-class CaseJSON(BaseModel):
-    ticket_id: str
-    title: str
-    product: str
-    module: str
-    category: str
-    problem: str
-    symptoms: List[str] = Field(default_factory=list)
-    environment: Optional[str] = None
-    root_cause: Optional[str] = None
-    resolution_steps: List[Step] = Field(default_factory=list)
-    verification_steps: List[Step] = Field(default_factory=list)
-    when_to_escalate: List[str] = Field(default_factory=list)
-    placeholders_needed: List[PlaceholderNeed] = Field(default_factory=list)
-    evidence_sources: List[str] = Field(default_factory=list)
-    generated_at: str
 
 
 def build_case_bundle(ticket_id: str, session: Session) -> Dict[str, Any]:
@@ -225,11 +198,24 @@ def build_case_json_llm(bundle: Dict[str, Any], api_key: str | None = None) -> C
 
 
 def generate_kb_draft(
-    ticket_id: str, session: Session, api_key: str | None = None
+    ticket_id: str,
+    session: Session,
+    api_key: str | None = None,
+    generation_mode: str = "deterministic",
 ) -> tuple[KBDraft, CaseJSON]:
-    bundle = build_case_bundle(ticket_id, session)
-    case_json = build_case_json_llm(bundle, api_key=api_key)
-    body_markdown = render_kb_draft(case_json)
+    rlm_trace_json = None
+    generation_tag = "deterministic"
+    if generation_mode == "rlm":
+        case_json, rlm_trace = build_case_json_rlm(
+            session, ticket_id, api_key=api_key
+        )
+        body_markdown = render_kb_draft(case_json)
+        generation_tag = rlm_trace.get("generation_mode", "rlm")
+        rlm_trace_json = json.dumps(rlm_trace)
+    else:
+        bundle = build_case_bundle(ticket_id, session)
+        case_json = build_case_json_llm(bundle, api_key=api_key)
+        body_markdown = render_kb_draft(case_json)
 
     draft_id = str(uuid.uuid4())
     supersede_other_drafts(
@@ -247,6 +233,8 @@ def generate_kb_draft(
         body_markdown=body_markdown,
         case_json=case_json.model_dump_json(),
         status="draft",
+        generation_mode=generation_tag,
+        rlm_trace_json=rlm_trace_json,
     )
     session.add(draft)
     event = LearningEvent(

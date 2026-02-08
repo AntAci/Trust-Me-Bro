@@ -17,6 +17,13 @@ rank-bm25>=0.2,<1
 # Environment
 python-dotenv>=1.0,<2
 
+# API
+fastapi>=0.109,<1
+uvicorn[standard]>=0.27,<1
+
 # Dev/test
 pytest>=8.0,<9
 openai>=1.0,<2
+
+# ML (local)
+scikit-learn>=1.4,<2

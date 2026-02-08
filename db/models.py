@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text, Index
+from sqlalchemy import Boolean, DateTime, Integer, String, Text, Index, Float
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -38,6 +38,10 @@ class KBDraft(Base):
     body_markdown: Mapped[str] = mapped_column(Text, nullable=False)
     case_json: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False)
+    generation_mode: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True, default="deterministic"
+    )
+    rlm_trace_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     reviewer: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     review_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -111,4 +115,18 @@ class KBArticleVersion(Base):
 
 
 Index("ix_versions_article", KBArticleVersion.kb_article_id)
+
+
+class KBGalaxyPoint(Base):
+    __tablename__ = "kb_galaxy_points"
+
+    point_id: Mapped[str] = mapped_column(String, primary_key=True)
+    kb_article_id: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    x: Mapped[float] = mapped_column(Float, nullable=False)
+    y: Mapped[float] = mapped_column(Float, nullable=False)
+    method: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+Index("ix_kb_galaxy_article", KBGalaxyPoint.kb_article_id, unique=True)
 

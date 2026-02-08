@@ -335,6 +335,21 @@ python scripts/show_provenance.py --kb-article-id <kb_article_id>
 pytest tests/
 ```
 
+### Trust Signals API (local)
+
+```bash
+uvicorn api_server:app --reload --port 8000
+```
+
+Example calls:
+
+```bash
+curl http://localhost:8000/api/metrics
+curl "http://localhost:8000/api/galaxy?limit=200&seed=42"
+curl http://localhost:8000/api/drafts/<draft_id>/grounding
+curl http://localhost:8000/api/articles/<kb_article_id>/grounding
+```
+
 ### Postgres/BM25 pipeline
 
 Create `.env` file:

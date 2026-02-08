@@ -31,6 +31,8 @@ def _ensure_kb_drafts_columns(conn) -> None:
         "reviewed_at": "DATETIME",
         "review_notes": "TEXT",
         "published_at": "DATETIME",
+        "generation_mode": "TEXT DEFAULT 'deterministic'",
+        "rlm_trace_json": "TEXT",
     }
     for name, col_type in columns.items():
         if name not in existing:
