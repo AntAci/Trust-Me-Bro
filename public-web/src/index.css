@@ -1,0 +1,337 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 210 20% 98%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 243 75% 59%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 191 88% 45%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --success: 160 72% 40%;
+    --success-foreground: 210 40% 98%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 222.2 84% 4.9%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 243 75% 59%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 243 75% 59%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 210 40% 96.1%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 243 75% 59%;
+
+    /* Provenance graph colors */
+    --node-ticket: 38 92% 50%;
+    --node-draft: 243 75% 59%;
+    --node-published: 160 72% 40%;
+    --node-section: 191 88% 45%;
+    --node-evidence: 210 40% 96.1%;
+    --node-version: 262 83% 58%;
+    --edge-created: 160 72% 40%;
+    --edge-references: 243 75% 59%;
+  }
+
+  .dark {
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+
+    --card: 222 40% 14%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 40% 14%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 243 75% 59%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 191 88% 25%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --success: 160 72% 40%;
+    --success-foreground: 210 40% 98%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 222.2 84% 4.9%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 243 75% 59%;
+
+    --sidebar-background: 222 40% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 243 75% 59%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 217.2 32.6% 17.5%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 217.2 32.6% 17.5%;
+    --sidebar-ring: 243 75% 59%;
+
+    /* Provenance graph colors */
+    --node-ticket: 38 92% 50%;
+    --node-draft: 243 75% 59%;
+    --node-published: 160 72% 40%;
+    --node-section: 191 88% 45%;
+    --node-evidence: 217.2 32.6% 17.5%;
+    --node-version: 262 83% 58%;
+    --edge-created: 160 72% 40%;
+    --edge-references: 243 75% 59%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* ===== WOW-Grade Animations ===== */
+
+/* Provenance edge drawing animation */
+.edge-animate {
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  animation: draw-edge 500ms ease-out forwards;
+}
+
+@keyframes draw-edge {
+  to { stroke-dashoffset: 0; }
+}
+
+/* Node reveal animation */
+.node-reveal {
+  animation: reveal 300ms ease-out forwards;
+}
+
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Counter tick animation */
+.counter-tick {
+  animation: count-up 150ms ease-out;
+}
+
+@keyframes count-up {
+  from {
+    opacity: 0.7;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Badge pulse animation */
+.badge-pulse {
+  animation: pulse-once 200ms ease-out;
+}
+
+@keyframes pulse-once {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+/* KB Article ID reveal */
+.id-reveal {
+  animation: id-reveal 400ms ease-out forwards;
+}
+
+@keyframes id-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.95);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+/* Glow effect for counters */
+.counter-glow {
+  animation: glow 300ms ease-out;
+}
+
+@keyframes glow {
+  0% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4); }
+  50% { box-shadow: 0 0 8px 2px hsl(var(--primary) / 0.3); }
+  100% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0); }
+}
+
+/* Staggered progress bar animation */
+.progress-animate {
+  animation: progress-grow 400ms ease-out forwards;
+}
+
+@keyframes progress-grow {
+  from { width: 0%; }
+}
+
+/* Version pop animation */
+.version-pop {
+  animation: version-pop 300ms ease-out forwards;
+}
+
+@keyframes version-pop {
+  0% { 
+    opacity: 0; 
+    transform: scale(0.5); 
+  }
+  70% { 
+    transform: scale(1.15); 
+  }
+  100% { 
+    opacity: 1; 
+    transform: scale(1); 
+  }
+}
+
+/* Slide in up animation */
+.animate-slide-in-up {
+  animation: slide-in-up 300ms ease-out forwards;
+}
+
+@keyframes slide-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Reveal animation */
+.animate-reveal {
+  animation: reveal 300ms ease-out forwards;
+}
+
+/* Pulse once animation */
+.animate-pulse-once {
+  animation: pulse-once 200ms ease-out;
+}
+.react-flow__node {
+  @apply rounded-lg shadow-md;
+}
+
+.react-flow__edge-path {
+  stroke-width: 2;
+}
+
+.react-flow__minimap {
+  @apply rounded-lg border bg-card;
+}
+
+.react-flow__controls {
+  @apply rounded-lg border bg-card shadow-md;
+}
+
+.react-flow__controls-button {
+  @apply border-border bg-card text-foreground hover:bg-accent;
+}
+
+/* TMB hero gradient */
+.tmb-hero {
+  background: radial-gradient(
+      1200px 240px at 20% -10%,
+      hsl(var(--primary) / 0.18),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 220px at 80% -20%,
+      hsl(var(--accent) / 0.18),
+      transparent 55%
+    ),
+    hsl(var(--card));
+}
+
+/* ===== Markdown content styling ===== */
+.kb-markdown {
+  @apply prose prose-sm max-w-none dark:prose-invert;
+}
+
+.kb-markdown h1 {
+  @apply text-xl font-bold text-foreground;
+}
+
+.kb-markdown h2 {
+  @apply text-lg font-semibold text-foreground;
+}
+
+.kb-markdown h3 {
+  @apply text-base font-medium text-foreground;
+}
+
+.kb-markdown ul {
+  @apply list-disc pl-4;
+}
+
+.kb-markdown ol {
+  @apply list-decimal pl-4;
+}
+
+.kb-markdown code {
+  @apply rounded bg-muted px-1 py-0.5 text-sm;
+}
+
+.kb-markdown pre {
+  @apply rounded-lg bg-muted p-4;
+}
