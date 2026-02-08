@@ -15,7 +15,11 @@ from generation.governance import get_drafts_by_status
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="List KB drafts by status")
-    parser.add_argument("--status", required=True, help="draft|approved|rejected|published")
+    parser.add_argument(
+        "--status",
+        required=True,
+        help="draft|approved|rejected|published|superseded",
+    )
     parser.add_argument("--db", default="trust_me_bro.db", help="SQLite DB path")
     args = parser.parse_args()
 

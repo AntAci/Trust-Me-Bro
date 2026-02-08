@@ -11,10 +11,11 @@ from db.models import KBDraft, LearningEvent
 
 
 ALLOWED_TRANSITIONS = {
-    "draft": {"approved", "rejected"},
-    "approved": {"published", "rejected"},
+    "draft": {"approved", "rejected", "superseded"},
+    "approved": {"published", "rejected", "superseded"},
     "rejected": set(),
     "published": set(),
+    "superseded": set(),
 }
 
 
@@ -39,6 +40,14 @@ def approve_draft(
     draft.reviewer = reviewer
     draft.reviewed_at = datetime.utcnow()
     draft.review_notes = notes
+    supersede_other_drafts(
+        session,
+        ticket_id=draft.ticket_id,
+        keep_draft_id=draft.draft_id,
+        reason="Superseded by approved draft.",
+        reviewer=reviewer,
+        statuses={"draft", "approved"},
+    )
     _log_event(
         session,
         event_type="approved",
@@ -77,6 +86,45 @@ def reject_draft(
     )
     session.commit()
     return draft
+
+
+def supersede_other_drafts(
+    session: Session,
+    ticket_id: str,
+    keep_draft_id: str,
+    reason: str,
+    reviewer: Optional[str] = None,
+    statuses: Optional[set[str]] = None,
+) -> int:
+    if statuses is None:
+        statuses = {"draft", "approved"}
+    drafts = (
+        session.query(KBDraft)
+        .filter(
+            KBDraft.ticket_id == ticket_id,
+            KBDraft.draft_id != keep_draft_id,
+            KBDraft.status.in_(statuses),
+        )
+        .all()
+    )
+    for draft in drafts:
+        _validate_transition(draft.status, "superseded")
+        draft.status = "superseded"
+        draft.reviewer = reviewer
+        draft.reviewed_at = datetime.utcnow()
+        draft.review_notes = reason
+        _log_event(
+            session,
+            event_type="superseded",
+            draft_id=draft.draft_id,
+            ticket_id=draft.ticket_id,
+            metadata={
+                "reviewer": reviewer,
+                "reason": reason,
+                "kept_draft_id": keep_draft_id,
+            },
+        )
+    return len(drafts)
 
 
 def _get_draft(session: Session, draft_id: str) -> KBDraft:

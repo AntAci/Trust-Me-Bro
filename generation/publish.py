@@ -8,6 +8,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from db.models import KBDraft, KBArticleVersion, LearningEvent, PublishedKBArticle
+from generation.governance import supersede_other_drafts
 
 
 def publish_draft(
@@ -79,6 +80,14 @@ def publish_draft(
 
     draft.status = "published"
     draft.published_at = datetime.utcnow()
+    supersede_other_drafts(
+        session,
+        ticket_id=draft.ticket_id,
+        keep_draft_id=draft.draft_id,
+        reason="Superseded by published draft.",
+        reviewer=reviewer,
+        statuses={"draft", "approved"},
+    )
 
     _log_event(
         session,

@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.orm import Session
 
 from db.models import EvidenceUnit, KBDraft, LearningEvent
+from generation.governance import supersede_other_drafts
 from generation.templates import render_kb_draft
 
 
@@ -230,8 +231,17 @@ def generate_kb_draft(
     case_json = build_case_json_llm(bundle, api_key=api_key)
     body_markdown = render_kb_draft(case_json)
 
+    draft_id = str(uuid.uuid4())
+    supersede_other_drafts(
+        session,
+        ticket_id=case_json.ticket_id,
+        keep_draft_id=draft_id,
+        reason="Superseded by newer draft generation.",
+        reviewer=None,
+        statuses={"draft", "approved"},
+    )
     draft = KBDraft(
-        draft_id=str(uuid.uuid4()),
+        draft_id=draft_id,
         ticket_id=case_json.ticket_id,
         title=case_json.title,
         body_markdown=body_markdown,

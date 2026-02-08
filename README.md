@@ -17,6 +17,23 @@
 
 **Trust Core:** Every published article includes evidence snippets (source ticket excerpts), full traceability (lineage graph), and append-only version history (immutable audit trail).
 
+## What We Completed
+
+- **db/**: SQLite engine, session, and `init_db` with ORM; migration that adds reviewer/reviewed_at/review_notes/published_at to `kb_drafts`. Models: `EvidenceUnit`, `KBDraft`, `KBLineageEdge`, `LearningEvent`, `PublishedKBArticle`, `KBArticleVersion`.
+- **ingestion/workbook_loader.py**: Load Excel workbook (Tickets, Conversations, Scripts_Master, Placeholder_Dictionary) into raw_* tables; extract evidence units with chunking (paragraph/sentence, resolution steps, transcript lines, script text, placeholders). Evidence unit IDs like `EU-TICKET-{id}-{field}-{offset}`.
+- **generation/templates.py**: `render_kb_draft(case_json)` → markdown KB article (Summary, Problem, Environment, Root Cause, Resolution Steps, Verification Steps, Required Inputs, Evidence Sources).
+- **generation/generator.py**: `build_case_bundle(ticket_id, session)`, `build_case_json_deterministic(bundle)`, `build_case_json_llm(bundle, api_key)` (optional OpenAI), `generate_kb_draft(ticket_id, session, api_key)` → draft + CaseJSON; Pydantic `CaseJSON` with steps/placeholders and evidence_unit_ids.
+- **generation/lineage.py**: `write_lineage_edges(draft, case_json, session)` (CREATED_FROM / REFERENCES by section), `get_provenance_report(draft_id, session)` for provenance output.
+- **generation/governance.py**: `get_drafts_by_status`, `approve_draft`, `reject_draft` with status transitions (draft→approved/rejected, approved→published/rejected).
+- **generation/publish.py**: `publish_draft` (create/update published article + append version), `rollback_version`, `get_published_article`, `export_for_indexer(session, kb_article_id)` for indexer payload.
+- **scripts/demo.py**: Full pipeline for one ticket: load workbook, extract evidence, generate draft, write lineage, approve, publish; prints draft body, CaseJSON, provenance, export payload. Uses `Data/SupportMind__Final_Data.xlsx` with `--workbook`.
+- **scripts/list_drafts.py**: List drafts by `--status draft|approved|rejected|published`.
+- **scripts/review_draft.py**: Approve or reject a draft (`--action approve|reject`, `--reviewer`, `--notes`).
+- **scripts/publish_draft.py**: Publish an approved draft (`--reviewer`, `--note`, optional `--kb-article-id` for new version).
+- **scripts/show_provenance.py**: Show provenance by `--draft-id` or `--kb-article-id`.
+- **tests/**: `test_case_json.py` (CaseJSON build/validation), `test_evidence.py` (evidence extraction chunking), `test_lineage.py` (write_lineage_edges from CaseJSON). Run with `pytest tests/`.
+- **requirements.txt**: pandas, sqlalchemy, openpyxl, pydantic, pytest, openai. Data workbook in `Data/SupportMind__Final_Data.xlsx`.
+
 ## System Architecture
 
 ```
@@ -67,20 +84,20 @@
 
 ## Repository Structure
 
-**Current Status:** Repository is newly initialized. Structure below is **proposed/canonical**. Folders marked as "Planned / Not yet implemented" should be created during development.
+**Current Status:** Below is the proposed structure. Items marked **✅ Implemented** are done; others are planned.
 
 ```
 Trust-Me-Bro/
-├── ingestion/              # Planned: Ticket/conversation ingestion
-│   ├── __init__.py
-│   ├── workbook_loader.py # Excel/CSV → DB tables
-│   └── extractors.py      # Extract text from tickets/conversations
+├── ingestion/              # ✅ Implemented: Ticket/conversation ingestion
+│   ├── __init__.py         # ✅
+│   ├── workbook_loader.py # ✅ Excel → raw_* tables + extract_evidence_units
+│   └── extractors.py      # Planned: Extract text from tickets/conversations
 │
-├── db/                     # Planned: Database models and migrations
-│   ├── __init__.py
-│   ├── models.py          # SQLAlchemy/ORM models
-│   ├── schema.sql         # Table definitions
-│   └── migrations/        # DB migration scripts
+├── db/                     # ✅ Implemented: Database models and init
+│   ├── __init__.py         # ✅ get_engine, init_db, get_session, kb_drafts migration
+│   ├── models.py           # ✅ EvidenceUnit, KBDraft, KBLineageEdge, LearningEvent, PublishedKBArticle, KBArticleVersion
+│   ├── schema.sql         # Planned: Table definitions (ORM used instead)
+│   └── migrations/        # Planned: DB migration scripts
 │
 ├── retrieval/              # Planned: Search and retrieval logic
 │   ├── __init__.py
@@ -93,11 +110,13 @@ Trust-Me-Bro/
 │   ├── detector.py        # Identify knowledge gaps
 │   └── thresholds.py      # Configurable thresholds
 │
-├── generation/             # Planned: Draft KB article generation
-│   ├── __init__.py
-│   ├── templates.py       # KB article templates
-│   ├── generator.py       # Generate draft from evidence
-│   └── lineage.py         # Write lineage edges
+├── generation/             # ✅ Implemented: Draft KB article generation
+│   ├── __init__.py         # ✅
+│   ├── templates.py       # ✅ render_kb_draft
+│   ├── generator.py       # ✅ build_case_bundle, CaseJSON, generate_kb_draft
+│   ├── lineage.py         # ✅ write_lineage_edges, get_provenance_report
+│   ├── governance.py      # ✅ approve_draft, reject_draft, get_drafts_by_status
+│   └── publish.py         # ✅ publish_draft, rollback_version, export_for_indexer
 │
 ├── ui/                     # Planned: Review and management UI
 │   ├── __init__.py
@@ -111,25 +130,36 @@ Trust-Me-Bro/
 │   ├── metrics.py         # Hit@k, retrieval lift, completeness
 │   └── reports.py         # Generate evaluation reports
 │
-├── scripts/                # Planned: Utility scripts
-│   ├── load_data.py       # Load workbook into DB
-│   ├── build_index.py     # Build seed/full indices
-│   ├── run_eval.py        # Run evaluation pipeline
-│   └── demo.py            # Demo script
+├── scripts/                # ✅ Partially implemented: Utility scripts
+│   ├── load_data.py       # Planned: standalone load (demo does load internally)
+│   ├── build_index.py     # Planned: Build seed/full indices
+│   ├── run_eval.py        # Planned: Run evaluation pipeline
+│   ├── demo.py            # ✅ Full pipeline: load, extract, generate, approve, publish
+│   ├── list_drafts.py     # ✅ List drafts by status
+│   ├── review_draft.py    # ✅ Approve or reject draft (CLI)
+│   ├── publish_draft.py   # ✅ Publish approved draft
+│   └── show_provenance.py # ✅ Provenance by draft-id or kb-article-id
 │
-├── data/                   # Planned: Sample data and workbooks
-│   ├── SupportMind__Final_Data.xlsx      # Source workbook (Tickets, KB, etc.)
+├── Data/                   # ✅ Implemented: Source workbook
+│   └── SupportMind__Final_Data.xlsx   # ✅ In use (Tickets, Conversations, Scripts_Master, Placeholder_Dictionary)
+│
+├── data/                   # Planned: Alternative data path / samples
+│   ├── SupportMind__Final_Data.xlsx      # (workbook also in Data/)
 │   └── samples/           # Sample tickets/conversations
 │
 ├── notebooks/              # Planned: Analysis and experimentation
 │   └── exploration.ipynb  # Data exploration, gap analysis
 │
-├── tests/                  # Planned: Unit and integration tests
-│   ├── test_ingestion.py
-│   ├── test_retrieval.py
-│   └── test_gap_detection.py
+├── tests/                  # ✅ Partially implemented: Unit tests
+│   ├── test_case_json.py  # ✅ CaseJSON build/validation
+│   ├── test_evidence.py    # ✅ Evidence extraction chunking
+│   ├── test_lineage.py     # ✅ write_lineage_edges
+│   ├── test_ingestion.py   # Planned
+│   ├── test_retrieval.py   # Planned
+│   └── test_gap_detection.py  # Planned
 │
-├── requirements.txt        # Planned: Python dependencies
+├── requirements.txt        # ✅ Implemented: pandas, sqlalchemy, openpyxl, pydantic, pytest, openai
+├── trust_me_bro.db         # ✅ Created on first run (SQLite)
 ├── pyproject.toml          # Planned: Project metadata (optional)
 ├── .env.example           # Planned: Environment variables template
 ├── docker-compose.yml      # Planned: Docker setup (optional)
@@ -256,7 +286,7 @@ Tickets (1) ──→ (N) Learning_Events
 
 ## Running Locally
 
-**Status:** Commands below are **suggested** based on proposed structure. Implement during development.
+**Status:** Commands below include both **working commands** (what we implemented) and **suggested** commands for planned features.
 
 ### Prerequisites
 
@@ -268,7 +298,30 @@ python --version
 pip install -r requirements.txt
 ```
 
-### Setup
+### What works now (implemented)
+
+```bash
+# Full demo: load workbook, extract evidence, generate one draft, approve, publish (uses first closed ticket if --ticket omitted)
+python scripts/demo.py --workbook Data/SupportMind__Final_Data.xlsx [--ticket TICKET_ID] [--db trust_me_bro.db] [--openai-key KEY]
+
+# List drafts by status
+python scripts/list_drafts.py --status draft   # or approved | rejected | published
+
+# Approve or reject a draft (CLI review)
+python scripts/review_draft.py <draft_id> --action approve --reviewer "Name" [--notes "LGTM"]
+
+# Publish an approved draft (optional --kb-article-id for new version of existing article)
+python scripts/publish_draft.py <draft_id> --reviewer "Name" [--note "Initial publish"]
+
+# Show provenance for a draft or published article
+python scripts/show_provenance.py --draft-id <draft_id>
+python scripts/show_provenance.py --kb-article-id <kb_article_id>
+
+# Run tests
+pytest tests/
+```
+
+### Setup (planned / suggested)
 
 ```bash
 # 1. Load workbook data into database
@@ -285,18 +338,18 @@ cd ui && python app.py
 # Or: uvicorn ui.app:app --reload  # if FastAPI
 ```
 
-### Evaluation
+### Evaluation (planned)
 
 ```bash
 # Run evaluation pipeline
 python scripts/run_eval.py --output eval/report.json
 ```
 
-**Note:** These scripts should be implemented in `scripts/` directory. See "Repository Structure" for proposed file locations.
+**Note:** Implemented scripts live in `scripts/`. See "Repository Structure" and "What We Completed" for what exists.
 
 ## Demo Script
 
-**Status:** Demo script should be implemented in `scripts/demo.py`. Below is the intended workflow.
+**Status:** Demo script is implemented in `scripts/demo.py`. Run: `python scripts/demo.py --workbook Data/SupportMind__Final_Data.xlsx [--ticket TICKET_ID] [--openai-key KEY]`. It loads the workbook, extracts evidence, generates one draft, writes lineage, approves, publishes, and prints draft body, CaseJSON, provenance, and export payload. Below is the intended full hackathon sequence (some steps still planned).
 
 ### Hackathon Demo Sequence
 
@@ -358,21 +411,21 @@ Reports should be generated by `eval/metrics.py` and output to `eval/reports/`. 
 
 ### Phase 1: MVP (Current Focus)
 - ✅ Repository structure
-- ⏳ Ingestion pipeline (workbook → DB)
+- ✅ Ingestion pipeline (workbook → DB, evidence unit extraction in workbook_loader)
 - ⏳ Seed index building
 - ⏳ Basic retrieval (vector search)
 - ⏳ Gap detection (threshold-based)
-- ⏳ Draft generation (template-based)
-- ⏳ Review UI (approve/reject)
-- ⏳ Publish + reindex
+- ✅ Draft generation (template-based, CaseJSON deterministic + optional LLM)
+- ✅ Review (approve/reject via CLI: review_draft.py, governance.approve_draft/reject_draft)
+- ✅ Publish (publish_draft, versioning, export_for_indexer; reindex not implemented)
 - ⏳ Basic evaluation metrics
 
 ### Phase 2: Governance & Versioning
 - Versioning UI (view article history)
-- Rollback capability
+- ✅ Rollback capability (publish.rollback_version)
 - Multi-reviewer workflow
 - Approval chains
-- Lineage visualization (graph view)
+- ✅ Lineage / provenance (write_lineage_edges, get_provenance_report; graph UI not done)
 - Evidence snippet highlighting
 
 ### Phase 3: Scale & Dashboard
@@ -424,4 +477,4 @@ Reports should be generated by `eval/metrics.py` and output to `eval/reports/`. 
 
 ---
 
-**Note:** This README reflects the proposed architecture. As modules are implemented, update this document to reflect actual file locations and working commands.
+**Note:** This README describes the proposed architecture and **what we completed** (see "What We Completed", "What works now", and Roadmap checkmarks). Planned items are unchanged; add new completion notes as more modules are implemented.
