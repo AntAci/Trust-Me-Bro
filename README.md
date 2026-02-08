@@ -1,22 +1,86 @@
-# Trust Me Bro
+# Trust Me Bro (TMB)
 
-## Overview
+Built for the RealPage sponsored track: **Designing a Self‑Learning AI System for Support that Builds Trust**.
 
-**Trust Me Bro** is a **self-updating knowledge engine for Support** built for the RealPage sponsored track: **Designing a Self-Learning AI System for Support that Builds Trust**.
+## TL;DR (what we built)
 
-For **Feature 1 (Self‑Updating Knowledge Engine)**, we go deep on: ingesting support artifacts → extracting auditable evidence → generating KB drafts → **human-gated approval** → **versioned publishing** → **traceability/provenance** (and optional retrieval lift evaluation).
+**Trust Me Bro** is a **self‑updating support knowledge engine** that:
+- converts resolved support artifacts (tickets + transcripts + scripts) into **KB drafts**
+- enforces a **human governance gate** (approve/reject)
+- publishes **append‑only versions** (v1, v2, …)
+- provides **proof you can trust** every update via **evidence + provenance**
 
-**Demo narrative:** A support ticket arrives → weak KB search results → gap detected → draft KB article generated → human approves → article published → now retrievable with full lineage showing ticket origin and evidence snippets.
+## Demo narrative (the 30‑second story)
 
-## Feature 1 (Self‑Updating Knowledge Engine): what this repo demonstrates
+Ticket arrives → system extracts evidence → generates a structured KB draft (**RLM**) → human approves → publish v1 → publish v2 update → audit provenance + version history.
 
-**Goal:** automatically convert resolved tickets + transcripts into reusable KB knowledge, without sacrificing trust.
+## What’s novel (and “trust” oriented)
 
-**Trust guarantees (why you can “trust the update”):**
-- **Evidence units**: every draft is built from stable, inspectable snippets (ticket fields, transcript lines, scripts/runbooks).
+- **RLM (Recursive Language Model) drafting**: generates section‑by‑section from evidence; optional OpenAI synthesis while keeping deterministic fallbacks.
+- **Evidence units**: stable, inspectable snippets (ticket fields, transcript lines, scripts/runbooks, placeholders).
 - **Provenance/lineage graph**: KB sections link back to evidence IDs (and therefore to source records).
-- **Governance gate**: drafts are not considered canonical until a human approves.
-- **Versioning**: publishing creates an append-only audit trail (v1, v2, …) so updates never overwrite history.
+- **Governance gate**: drafts never become “live knowledge” until a human approves.
+- **Append‑only versions**: updates don’t overwrite history; every change is auditable.
+- **(Optional) BM25 gap detection**: conservative, explainable “do we already know this?” trust gate.
+
+## Hackathon demo UI (public-web)
+
+The `public-web/` app is a judge‑friendly workflow UI:
+- **Dashboard**: metrics + Living Knowledge Map animation + auto‑demo
+- **Guided Flow**: select ticket → generate draft → approve → publish v1 → publish v2
+- **Provenance**: audit every section back to evidence snippets
+- **Version History**: immutable v1/v2 timeline
+- **Galaxy**: semantic clustering of tickets/drafts/articles (TF‑IDF + SVD)
+
+## Quickstart (local demo)
+
+### 1) Backend (FastAPI)
+
+```bash
+pip install -r requirements.txt
+DB_PATH=trust_me_bro.db uvicorn api_server:app --reload --port 8000
+```
+
+On Windows PowerShell:
+
+```powershell
+$env:DB_PATH=\"C:\\Users\\anton\\Desktop\\Trust-Me-Bro\\trust_me_bro.db\"
+python -m uvicorn api_server:app --reload --host 127.0.0.1 --port 8000
+```
+
+### 2) Frontend (Vite)
+
+```bash
+cd public-web
+npm install
+npm run dev
+```
+
+The UI uses `VITE_API_URL` (defaults to `http://localhost:8000`).
+
+## Core API endpoints (used by the UI)
+
+- `GET /api/metrics`
+- `GET /api/tickets?limit=50&search=...`
+- `POST /api/drafts/generate` `{ ticket_id, generation_mode }`
+- `POST /api/drafts/{draft_id}/approve` / `reject`
+- `POST /api/drafts/{draft_id}/publish` (v1 or v2+ with `kb_article_id`)
+- `GET /api/articles/{kb_article_id}/versions`
+- `GET /api/provenance?kb_article_id=...`
+- `GET /api/provenance/evidence?...`
+- `GET /api/galaxy`
+
+## Contribution highlights (what we shipped)
+
+**Backend**
+- Full **trust‑signals REST API** (`api_server.py`) for the demo UI (tickets, drafts, publish, provenance, galaxy, grounding).
+- Evidence → draft generation (deterministic + **RLM**) with verification and graceful fallback.
+- Lineage edges (`kb_lineage_edges`) for full traceability.
+- Publish + versioning (`published_kb_articles`, `kb_article_versions`) with audit trail.
+
+**Frontend**
+- Full hackathon‑ready UI (`public-web/`) with guided workflow, auto‑demo, provenance graph, versions, and galaxy view.
+- TMB branding + dark‑mode friendly palette for stage demos.
 
 ## Core Concepts
 
@@ -53,6 +117,10 @@ For **Feature 1 (Self‑Updating Knowledge Engine)**, we go deep on: ingesting s
 - **tests/**: `test_case_json.py` (CaseJSON build/validation), `test_evidence.py` (evidence extraction chunking), `test_lineage.py` (write_lineage_edges from CaseJSON). Run with `pytest tests/`.
 - **requirements.txt**: pandas, sqlalchemy, openpyxl, pydantic, pytest, openai. Data workbook in `Data/SupportMind__Final_Data.xlsx`.
 - **public-web/**: Hackathon demo UI (React + Vite): guided workflow, provenance graph, version history, galaxy visualization, auto-demo.
+
+---
+
+## Appendix: deeper technical details
 
 ## Why BM25 Over Embeddings?
 
