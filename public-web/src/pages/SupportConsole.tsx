@@ -123,7 +123,21 @@ export default function SupportConsole() {
 
   const handleSelectTicket = useCallback(
     async (ticket: Ticket) => {
+      // Don't reset anything if selecting the same ticket
+      if (selectedTicket?.ticket_number === ticket.ticket_number) {
+        return;
+      }
+      
       setSelectedTicket(ticket);
+      // Reset draft state when switching to a different ticket
+      setDraft(null);
+      setDraftStatus("idle");
+      setKbArticleId(null);
+      setCurrentVersion(0);
+      setLastPublishedDraftId(null);
+      setVersions([]);
+      setTrustLedgerEvents([]);
+      
       if (ticket.ticket_number === scenario.ticket.ticket_number) {
         setTranscript(scenario.transcript);
         setEvidenceUnits(scenario.evidenceUnits);
@@ -136,8 +150,6 @@ export default function SupportConsole() {
         setTranscript(syntheticScenario.transcript);
         setEvidenceUnits(syntheticScenario.evidenceUnits);
         setEvidenceSummary(syntheticScenario.evidenceSummary);
-        setDraft(null);
-        setDraftStatus("idle");
         return;
       }
 
@@ -151,7 +163,7 @@ export default function SupportConsole() {
       setEvidenceUnits([]);
       setEvidenceSummary(emptyEvidenceSummary);
     },
-    [scenario, emptyEvidenceSummary, syntheticScenarios]
+    [scenario, emptyEvidenceSummary, syntheticScenarios, selectedTicket]
   );
 
   const handleGenerateScenario = useCallback(

@@ -193,11 +193,11 @@ export default function Dashboard() {
                 disabled={autoDemo.status !== "idle"}
               >
                 <Zap className="h-4 w-4" />
-                Auto Demo (15s)
+                Quick Tour (15s)
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-xs">
-              <p>Runs the full workflow: draft → review → publish v1 → update v2, with live provenance.</p>
+              <p>Automated walkthrough: generates draft → human review → publish → update, with full provenance tracking.</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -207,21 +207,20 @@ export default function Dashboard() {
           onClick={() => navigate("/plugin")}
         >
           <Sparkles className="h-4 w-4" />
-          Open Plugin Demo
+Open Support Console
           <ArrowRight className="h-4 w-4" />
         </Button>
       </div>
 
-      {/* API Status Banner */}
-      {error && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950">
+      {/* API Status Banner - only show in development */}
+      {error && process.env.NODE_ENV === 'development' && (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="border-amber-500 text-amber-600">
-              Demo Mode
+            <Badge variant="outline" className="border-slate-400 text-slate-600">
+              Offline Mode
             </Badge>
-            <span className="text-sm text-amber-800 dark:text-amber-200">
-              API unavailable — showing sample data. Start the FastAPI server on
-              localhost:8000 for live data.
+            <span className="text-sm text-slate-600 dark:text-slate-400">
+              Using cached sample dataset. Backend connection optional.
             </span>
           </div>
         </div>
@@ -286,26 +285,23 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Demo Mode Indicator */}
+      {/* Sample Dataset Indicator */}
       {isDemoMode && (
-        <Card className="border-primary/20 bg-primary/5">
+        <Card className="border-green-200 bg-green-50/50 dark:border-green-900 dark:bg-green-950/30">
           <CardContent className="flex items-center gap-4 py-4">
-            <div className="rounded-full bg-primary/10 p-3">
-              <Sparkles className="h-5 w-5 text-primary" />
+            <div className="rounded-full bg-green-100 dark:bg-green-900/50 p-3">
+              <BookCheck className="h-5 w-5 text-green-600 dark:text-green-400" />
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-2">
-                <p className="font-medium">Demo Mode Active</p>
-                <Badge variant="secondary" className="text-xs">
-                  DEMO MODE • Mock data enabled
+                <p className="font-medium text-green-800 dark:text-green-200">Sample Dataset Loaded</p>
+                <Badge variant="outline" className="text-xs border-green-500 text-green-700 dark:text-green-300">
+                  400 Enterprise Support Tickets
                 </Badge>
               </div>
-              <p className="text-sm text-muted-foreground">
-                Ticket <code className="rounded bg-muted px-1">CS-38908386</code>{" "}
-                will be pre-selected. Reviewer defaults to "Demo".
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Runs without backend connectivity
+              <p className="text-sm text-green-700/80 dark:text-green-300/80">
+                Pre-loaded with ticket <code className="rounded bg-green-100 dark:bg-green-900 px-1 text-green-800 dark:text-green-200">CS-38908386</code>{" "}
+                for guided workflow demonstration.
               </p>
             </div>
           </CardContent>

@@ -1,4 +1,4 @@
-import { LayoutDashboard, Plug, Network, History, Sparkles } from "lucide-react";
+import { LayoutDashboard, Plug, Network, History, Sparkles, ShieldCheck } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 
@@ -16,11 +16,11 @@ import {
 } from "@/components/ui/sidebar";
 
 const navItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Plugin Demo", url: "/plugin", icon: Plug },
-  { title: "Galaxy", url: "/galaxy", icon: Sparkles },
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Support Console", url: "/plugin", icon: Plug },
   { title: "Provenance", url: "/provenance", icon: Network },
   { title: "Version History", url: "/versions", icon: History },
+  { title: "Galaxy", url: "/galaxy", icon: Sparkles },
 ];
 
 export function AppSidebar() {
@@ -35,7 +35,7 @@ export function AppSidebar() {
       <SidebarHeader className="border-b border-sidebar-border px-4 py-4">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Sparkles className="h-4 w-4" />
+            <ShieldCheck className="h-4 w-4" />
           </div>
           {!collapsed && (
             <div className="flex flex-col">
@@ -60,7 +60,7 @@ export function AppSidebar() {
                   >
                     <NavLink
                       to={item.url}
-                      end={item.url === "/"}
+                      end={item.url === "/dashboard"}
                       className="flex items-center gap-2"
                       activeClassName="bg-sidebar-accent text-sidebar-accent-foreground"
                     >

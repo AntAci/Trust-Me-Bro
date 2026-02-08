@@ -45,7 +45,7 @@ export function AutoDemoController({
           status === "complete" && "bg-primary"
         )} />
         <span className="text-xs font-medium">
-          {status === "complete" ? "Demo Complete" : currentStepName}
+          {status === "complete" ? "Tour Complete" : currentStepName}
         </span>
       </div>
 

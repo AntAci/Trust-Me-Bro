@@ -109,6 +109,9 @@ export type { GroupedProvenance as GroupedProvenanceItem };
 export interface ProvenanceResponse {
   kb_article_id: string;
   latest_draft_id: string;
+  source_ticket_id: string;
+  title: string;
+  current_version: number;
   grouped: GroupedProvenance[];
   total_edges: number;
 }
@@ -233,6 +236,13 @@ export const api = {
     }),
 
   // Articles
+  getArticles: (params?: { limit?: number }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.limit) searchParams.set("limit", String(params.limit));
+    const query = searchParams.toString();
+    return fetchApi<PublishedArticle[]>(`/api/articles${query ? `?${query}` : ""}`);
+  },
+
   getArticle: (kbArticleId: string) =>
     fetchApi<PublishedArticle>(`/api/articles/${kbArticleId}`),
 

@@ -31,8 +31,8 @@ def render_kb_draft(case_json: Any) -> str:
     evidence_text = _format_bullets(evidence_sources)
 
     timestamp = data.get("generated_at") or datetime.utcnow().isoformat()
+    # Note: Title is NOT included here - frontend displays it separately
     return (
-        f"# {title}\n\n"
         "## Summary\n"
         f"{summary_text}\n\n"
         "## Problem Statement\n"

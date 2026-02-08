@@ -264,21 +264,78 @@ def _build_version_chain_edges(
 
 
 def _assign_coordinates(nodes: List[Dict[str, Any]], seed: int) -> None:
-    texts = [node.get("_text", "") for node in nodes]
+    """Assign coordinates using radial layout by type."""
     if len(nodes) <= 1:
         for node in nodes:
             node["x"] = 0.0
             node["y"] = 0.0
             node.pop("_text", None)
         return
-    if _SKLEARN_AVAILABLE:
-        coords = _tfidf_svd_coords(texts, seed)
-    else:
-        coords = _hashed_coords(texts, seed)
+    
+    # Use radial layout - much cleaner visualization
+    coords = _radial_layout_by_type(nodes, seed)
+    
     for node, (x, y) in zip(nodes, coords):
         node["x"] = float(x)
         node["y"] = float(y)
         node.pop("_text", None)
+
+
+def _radial_layout_by_type(nodes: List[Dict[str, Any]], seed: int) -> List[Tuple[float, float]]:
+    """
+    Arrange nodes in concentric circles by type.
+    Radii are calibrated to match frontend SVG ring circles.
+    Frontend rings are at: 90, 180, 260, 330 pixels from center (600,350)
+    With canvas half-width ~500 (accounting for padding), these map to ~0.18, 0.36, 0.52, 0.66
+    """
+    import math
+    
+    # Group nodes by type - radii matched to frontend ring circles
+    type_order = ["ticket", "draft", "article", "version"]
+    # Matched to frontend SVG: r=90, 180, 260, 330 relative to ~500px radius
+    type_radii = {"ticket": 0.18, "draft": 0.36, "article": 0.52, "version": 0.66}
+    
+    nodes_by_type: Dict[str, List[int]] = {t: [] for t in type_order}
+    for i, node in enumerate(nodes):
+        node_type = node.get("type", "ticket")
+        if node_type in nodes_by_type:
+            nodes_by_type[node_type].append(i)
+        else:
+            nodes_by_type["ticket"].append(i)  # fallback
+    
+    coords = [(0.0, 0.0)] * len(nodes)
+    rng = random.Random(seed)
+    
+    for node_type in type_order:
+        indices = nodes_by_type[node_type]
+        if not indices:
+            continue
+        
+        base_radius = type_radii[node_type]
+        n = len(indices)
+        
+        # Use golden angle for even distribution around the circle
+        golden_angle = math.pi * (3 - math.sqrt(5))  # ~137.5 degrees
+        base_angle_offset = rng.uniform(0, 2 * math.pi)
+        
+        for j, idx in enumerate(indices):
+            # Golden angle distribution
+            angle = base_angle_offset + j * golden_angle
+            
+            # Slight spiral for rings with many nodes
+            spiral_offset = (j / max(n, 1)) * 0.06 if n > 8 else 0
+            radius = base_radius + spiral_offset
+            
+            # Small jitter to prevent exact overlap
+            radius += rng.uniform(-0.015, 0.015)
+            angle += rng.uniform(-0.05, 0.05)
+            
+            x = radius * math.cos(angle)
+            y = radius * math.sin(angle)
+            
+            coords[idx] = (x, y)
+    
+    return coords
 
 
 def _tfidf_svd_coords(texts: List[str], seed: int) -> List[Tuple[float, float]]:
@@ -292,7 +349,64 @@ def _tfidf_svd_coords(texts: List[str], seed: int) -> List[Tuple[float, float]]:
     if max_val <= 0:
         return [(0.0, 0.0) for _ in texts]
     coords = coords / max_val
+    
+    # Apply force-directed repulsion to spread overlapping nodes
+    coords = _apply_repulsion(coords, seed=seed, iterations=50, min_distance=0.15)
+    
     return [(float(x), float(y)) for x, y in coords]
+
+
+def _apply_repulsion(coords: np.ndarray, seed: int = 42, iterations: int = 100, min_distance: float = 0.25) -> np.ndarray:
+    """Apply force-directed repulsion to spread overlapping nodes."""
+    rng = np.random.default_rng(seed)
+    n = len(coords)
+    if n < 2:
+        return coords
+    
+    coords = coords.copy()
+    
+    # First pass: Add strong random jitter based on original position
+    for i in range(n):
+        angle = rng.uniform(0, 2 * np.pi)
+        radius = rng.uniform(0.1, 0.3)
+        coords[i, 0] += np.cos(angle) * radius
+        coords[i, 1] += np.sin(angle) * radius
+    
+    # Multiple passes of force-directed repulsion
+    for iteration in range(iterations):
+        # Reduce force over iterations for stability
+        strength = 1.0 - (iteration / iterations) * 0.5
+        
+        for i in range(n):
+            for j in range(i + 1, n):
+                dx = coords[j, 0] - coords[i, 0]
+                dy = coords[j, 1] - coords[i, 1]
+                distance = np.sqrt(dx * dx + dy * dy)
+                
+                if distance < min_distance and distance > 0.001:
+                    # Push nodes apart
+                    force = (min_distance - distance) * strength
+                    nx = dx / distance
+                    ny = dy / distance
+                    coords[i, 0] -= nx * force
+                    coords[i, 1] -= ny * force
+                    coords[j, 0] += nx * force
+                    coords[j, 1] += ny * force
+                elif distance < 0.001:
+                    # Nodes at same position - add random offset
+                    angle = rng.uniform(0, 2 * np.pi)
+                    offset = min_distance
+                    coords[i, 0] -= np.cos(angle) * offset
+                    coords[i, 1] -= np.sin(angle) * offset
+                    coords[j, 0] += np.cos(angle) * offset
+                    coords[j, 1] += np.sin(angle) * offset
+    
+    # Normalize back to [-1, 1] range with margin
+    max_val = float(np.max(np.abs(coords))) if coords.size else 1.0
+    if max_val > 0:
+        coords = coords / max_val * 0.9  # Leave 10% margin
+    
+    return coords
 
 
 def _hashed_coords(texts: List[str], seed: int) -> List[Tuple[float, float]]:

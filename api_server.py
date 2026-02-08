@@ -6,6 +6,10 @@ import os
 from datetime import datetime
 from typing import Any, Dict, Optional
 
+# Load environment variables from .env file FIRST
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -42,6 +46,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+def startup_event():
+    openai_key = os.getenv("OPENAI_API_KEY")
+    if openai_key:
+        masked_key = openai_key[:8] + "..." + openai_key[-4:] if len(openai_key) > 12 else "***"
+        logger.info(f"✅ OpenAI API key loaded: {masked_key}")
+        print(f"✅ OpenAI API key loaded: {masked_key}")
+    else:
+        logger.warning("⚠️ OPENAI_API_KEY not set - drafts will use deterministic mode (no LLM)")
+        print("⚠️ OPENAI_API_KEY not set - drafts will use deterministic mode (no LLM)")
 
 
 def get_db():
@@ -367,6 +383,21 @@ def publish_draft_endpoint(
     }
 
 
+@app.get("/api/articles")
+def list_articles(
+    limit: int = Query(50, ge=1, le=500),
+    session=Depends(get_db),
+):
+    """List all published KB articles, ordered by most recent first."""
+    articles = (
+        session.query(PublishedKBArticle)
+        .order_by(PublishedKBArticle.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [_serialize_article(a) for a in articles]
+
+
 @app.get("/api/articles/{kb_article_id}")
 def get_article(kb_article_id: str, session=Depends(get_db)):
     article = (
@@ -424,6 +455,9 @@ def get_provenance(kb_article_id: str = Query(...), session=Depends(get_db)):
     return {
         "kb_article_id": article.kb_article_id,
         "latest_draft_id": article.latest_draft_id,
+        "source_ticket_id": article.source_ticket_id,
+        "title": article.title,
+        "current_version": article.current_version,
         "grouped": [dict(row) for row in grouped],
         "total_edges": int(total_edges or 0),
     }
@@ -830,6 +864,8 @@ def _serialize_draft(session, draft: KBDraft) -> Dict[str, Any]:
         "review_notes": draft.review_notes,
         "published_at": _iso(draft.published_at),
         "created_at": _iso(draft.created_at),
+        "generation_mode": draft.generation_mode,
+        "has_rlm_trace": draft.rlm_trace_json is not None,
     }
 
 
@@ -917,3 +953,8 @@ def _iso(value: Optional[datetime]) -> Optional[str]:
     if isinstance(value, datetime):
         return value.isoformat()
     return str(value)
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

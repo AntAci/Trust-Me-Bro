@@ -41,7 +41,7 @@ const createMockVersions = (currentVersion: number): ArticleVersion[] => {
       source_draft_id: `draft-00${i}`,
       body_markdown: `# Version ${i} Content`,
       title: "Payment Processing Timeout Error Resolution",
-      reviewer: i === 1 ? "Demo" : "Demo (Update)",
+      reviewer: i === 1 ? "KB Admin" : "KB Admin",
       change_note: i === 1 ? "Initial publication" : `Updated with new resolution steps (v${i})`,
       is_rollback: false,
       created_at: new Date(Date.now() - (currentVersion - i) * 3600000).toISOString(),

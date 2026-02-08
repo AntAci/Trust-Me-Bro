@@ -55,7 +55,7 @@ export function DemoModeProvider({ children }: { children: ReactNode }) {
         isDemoMode,
         setIsDemoMode,
         defaultTicketId: "CS-38908386",
-        defaultReviewer: "Demo",
+        defaultReviewer: "KB Admin",
         autoDemoStatus,
         setAutoDemoStatus,
         knowledgeMapState,

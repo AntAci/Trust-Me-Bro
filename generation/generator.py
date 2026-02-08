@@ -149,6 +149,128 @@ def build_case_json_deterministic(bundle: Dict[str, Any]) -> CaseJSON:
     )
 
 
+def _generate_quality_article(case_json: Any, api_key: str) -> Optional[str]:
+    """
+    Generate a high-quality KB article using a single comprehensive OpenAI call.
+    This produces better content by:
+    - Writing the entire article at once (no repetition)
+    - Using professional technical writing style
+    - Synthesizing evidence into coherent narrative
+    """
+    try:
+        from openai import OpenAI
+    except Exception:
+        return None
+    
+    # Convert case_json to dict if needed
+    if hasattr(case_json, "model_dump"):
+        data = case_json.model_dump()
+    else:
+        data = case_json
+    
+    # Build context for the LLM
+    title = data.get("title", "Untitled")
+    product = data.get("product", "N/A")
+    module = data.get("module", "N/A")
+    category = data.get("category", "N/A")
+    problem = data.get("problem", "")
+    symptoms = data.get("symptoms", [])
+    root_cause = data.get("root_cause", "")
+    resolution_steps = data.get("resolution_steps", [])
+    placeholders = data.get("placeholders_needed", [])
+    evidence_sources = data.get("evidence_sources", [])
+    
+    # Format resolution steps
+    steps_text = ""
+    for i, step in enumerate(resolution_steps, 1):
+        step_text = step.get("text", "") if isinstance(step, dict) else str(step)
+        steps_text += f"{i}. {step_text}\n"
+    
+    # Format placeholders
+    placeholders_text = ""
+    for p in placeholders:
+        token = p.get("placeholder", "") if isinstance(p, dict) else ""
+        meaning = p.get("meaning", "") if isinstance(p, dict) else ""
+        if token:
+            placeholders_text += f"- {token}: {meaning}\n"
+    
+    prompt = f"""You are a technical writer creating a knowledge base article for a support team.
+
+CONTEXT:
+- Product: {product}
+- Module: {module}  
+- Category: {category}
+- Issue: {title}
+
+RAW INFORMATION FROM TICKET:
+Problem: {problem}
+Symptoms: {'; '.join(symptoms) if symptoms else 'Not specified'}
+Root Cause: {root_cause or 'Not determined'}
+Resolution Steps: 
+{steps_text or 'Not specified'}
+
+Required Placeholders:
+{placeholders_text or 'None'}
+
+INSTRUCTIONS:
+Write a professional, concise knowledge base article. Follow these rules:
+1. DO NOT repeat the same information in multiple sections
+2. Be specific and actionable - avoid vague language like "doesn't look right"
+3. If the source information is vague, say "Customer reported [issue type]" once and move on
+4. Resolution steps should be numbered and clear
+5. Keep it under 400 words total
+6. Use markdown formatting
+
+FORMAT:
+## Summary
+(2-3 sentences max - what is this article about)
+
+## Problem
+(What specific issue does this address)
+
+## Environment
+- Product: [product]
+- Module: [module]
+
+## Root Cause
+(Brief explanation)
+
+## Resolution
+(Numbered steps)
+
+## Verification
+(How to confirm the fix worked)
+
+## Evidence
+(List the evidence source IDs)
+{', '.join(evidence_sources) if evidence_sources else 'See ticket for details'}
+
+Write the article now:"""
+
+    try:
+        client = OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            temperature=0.3,  # Slightly creative but consistent
+            max_tokens=800,
+            messages=[
+                {"role": "system", "content": "You are a technical writer. Write concise, professional KB articles. Never repeat information."},
+                {"role": "user", "content": prompt}
+            ],
+        )
+        content = response.choices[0].message.content
+        if content and len(content) > 100:
+            # Add footer with timestamp
+            timestamp = datetime.utcnow().isoformat()
+            ticket_id = data.get("ticket_id", "UNKNOWN")
+            content += f"\n\n---\n*Generated from Ticket {ticket_id} | {timestamp}*"
+            return content
+    except Exception as e:
+        print(f"Quality generation failed: {e}")
+    
+    return None
+
+
 def build_case_json_llm(bundle: Dict[str, Any], api_key: str | None = None) -> CaseJSON:
     if not api_key:
         return build_case_json_deterministic(bundle)
@@ -218,12 +340,22 @@ def generate_kb_draft(
 ) -> tuple[KBDraft, CaseJSON]:
     rlm_trace_json = None
     generation_tag = "deterministic"
+    
     if generation_mode == "rlm":
         case_json, rlm_trace = build_case_json_rlm(
             session, ticket_id, api_key=api_key
         )
-        body_markdown = render_kb_draft(case_json)
-        generation_tag = rlm_trace.get("generation_mode", "rlm")
+        # Try high-quality generation if API key available
+        if api_key:
+            body_markdown = _generate_quality_article(case_json, api_key)
+            if body_markdown:
+                generation_tag = "rlm_quality"
+            else:
+                body_markdown = render_kb_draft(case_json)
+                generation_tag = rlm_trace.get("generation_mode", "rlm")
+        else:
+            body_markdown = render_kb_draft(case_json)
+            generation_tag = rlm_trace.get("generation_mode", "rlm")
         rlm_trace_json = json.dumps(rlm_trace)
     else:
         bundle = build_case_bundle(ticket_id, session)

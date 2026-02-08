@@ -1,85 +1,22 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { History, Eye, Clock, User, FileText, StickyNote, Plus, RefreshCw, Minus } from "lucide-react";
+import { History, Eye, Clock, User, FileText, StickyNote, Plus, RefreshCw, Minus, ChevronDown } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
-import { api, ArticleVersion } from "@/lib/api";
-
-// Mock versions for when API is unavailable
-const mockVersions: ArticleVersion[] = [
-  {
-    version_id: "ver-1",
-    kb_article_id: "kb-001",
-    version: 1,
-    source_draft_id: "draft-001",
-    body_markdown: `# Payment Processing Timeout Error Resolution
-
-## Problem
-Users are experiencing timeout errors when attempting to process payments through the checkout flow.
-
-## Symptoms
-- Payment form hangs after clicking "Submit"
-- Error message: "Request timed out. Please try again."
-- Issue occurs more frequently during peak hours
-
-## Root Cause
-The payment gateway API endpoint was experiencing increased latency due to database connection pool exhaustion.
-
-## Resolution Steps
-1. Increase connection pool size from 10 to 50
-2. Add index on \`transactions.created_at\` column
-`,
-    title: "Payment Processing Timeout Error Resolution",
-    reviewer: "Demo",
-    change_note: "Initial publication",
-    is_rollback: false,
-    created_at: new Date(Date.now() - 7200000).toISOString(),
-  },
-  {
-    version_id: "ver-2",
-    kb_article_id: "kb-001",
-    version: 2,
-    source_draft_id: "draft-002",
-    body_markdown: `# Payment Processing Timeout Error Resolution
-
-## Problem
-Users are experiencing timeout errors when attempting to process payments through the checkout flow.
-
-## Symptoms
-- Payment form hangs after clicking "Submit"
-- Error message: "Request timed out. Please try again."
-- Issue occurs more frequently during peak hours
-- **NEW:** Some users see partial charges on their accounts
-
-## Root Cause
-The payment gateway API endpoint was experiencing increased latency due to:
-1. Database connection pool exhaustion
-2. Missing index on the transactions table
-3. **NEW:** Retry logic causing cascading timeouts
-
-## Resolution Steps
-1. Increase connection pool size from 10 to 50
-2. Add index on \`transactions.created_at\` column
-3. **NEW:** Implement exponential backoff for API retries
-4. **NEW:** Add circuit breaker pattern for payment gateway calls
-
-## Placeholders Needed
-- \`{{PAYMENT_GATEWAY_URL}}\` - The payment gateway endpoint URL
-- \`{{CONNECTION_POOL_SIZE}}\` - Recommended connection pool configuration
-- \`{{TIMEOUT_THRESHOLD}}\` - Maximum allowed response time
-`,
-    title: "Payment Processing Timeout Error Resolution",
-    reviewer: "Demo (Update)",
-    change_note: "Added retry logic and circuit breaker documentation",
-    is_rollback: false,
-    created_at: new Date(Date.now() - 3600000).toISOString(),
-  },
-];
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { api, ArticleVersion, PublishedArticle } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 // Derive change summary from markdown content
 function deriveChangeSummary(current: ArticleVersion, previous?: ArticleVersion) {
@@ -138,25 +75,53 @@ function extractSection(markdown: string, heading: string): string {
   return match ? match[1].trim() : "";
 }
 
-export default function VersionHistory({ kbArticleId: kbArticleIdProp }: { kbArticleId?: string }) {
-  const [searchParams] = useSearchParams();
-  const kbArticleId = kbArticleIdProp || searchParams.get("kb_article_id") || "kb-001";
+export default function VersionHistory() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [selectedArticleId, setSelectedArticleId] = useState<string | null>(
+    searchParams.get("kb_article_id")
+  );
   const [selectedVersion, setSelectedVersion] = useState<ArticleVersion | null>(null);
 
-  // Fetch versions
-  const { data: versions, isLoading } = useQuery({
-    queryKey: ["versions", kbArticleId],
-    queryFn: () => api.getArticleVersions(kbArticleId),
+  // Fetch all published articles for dropdown
+  const { data: articles, isLoading: articlesLoading } = useQuery({
+    queryKey: ["articles"],
+    queryFn: () => api.getArticles({ limit: 50 }),
+  });
+
+  // Auto-select the latest article if none selected
+  useEffect(() => {
+    if (!selectedArticleId && articles && articles.length > 0) {
+      // Find article with the most versions (most interesting for demo)
+      const articlesWithVersions = articles.filter(a => a.current_version > 1);
+      const selectedArticle = articlesWithVersions.length > 0 
+        ? articlesWithVersions[0] 
+        : articles[0];
+      setSelectedArticleId(selectedArticle.kb_article_id);
+      setSearchParams({ kb_article_id: selectedArticle.kb_article_id });
+    }
+  }, [articles, selectedArticleId, setSearchParams]);
+
+  const handleArticleSelect = (articleId: string) => {
+    setSelectedArticleId(articleId);
+    setSearchParams({ kb_article_id: articleId });
+    setSelectedVersion(null); // Reset version selection
+  };
+
+  // Fetch versions for selected article
+  const { data: versions, isLoading: versionsLoading } = useQuery({
+    queryKey: ["versions", selectedArticleId],
+    queryFn: () => api.getArticleVersions(selectedArticleId!),
+    enabled: !!selectedArticleId,
     retry: 1,
   });
 
-  const displayVersions = versions || mockVersions;
-  const latestVersion = displayVersions[displayVersions.length - 1];
+  const displayVersions = versions || [];
+  const latestVersion = displayVersions.length > 0 ? displayVersions[displayVersions.length - 1] : null;
   const currentView = selectedVersion || latestVersion;
 
   // Calculate change summary
   const changeSummary = useMemo(() => {
-    if (!currentView) return null;
+    if (!currentView || displayVersions.length === 0) return null;
     const versionIndex = displayVersions.findIndex((v) => v.version_id === currentView.version_id);
     const previousVersion = versionIndex > 0 ? displayVersions[versionIndex - 1] : undefined;
     return deriveChangeSummary(currentView, previousVersion);
@@ -172,24 +137,44 @@ export default function VersionHistory({ kbArticleId: kbArticleIdProp }: { kbArt
     });
   };
 
-  if (isLoading) {
+  const selectedArticle = articles?.find(a => a.kb_article_id === selectedArticleId);
+
+  if (articlesLoading) {
     return (
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold">Version History</h1>
-          <p className="text-muted-foreground">Loading...</p>
+          <p className="text-muted-foreground">Loading articles...</p>
         </div>
-        <div className="grid gap-6 lg:grid-cols-3">
-          <Skeleton className="h-[500px]" />
-          <Skeleton className="h-[500px] lg:col-span-2" />
+        <Skeleton className="h-[400px] w-full" />
+      </div>
+    );
+  }
+
+  if (!articles || articles.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <History className="h-6 w-6" />
+            Version History
+          </h1>
+          <p className="text-muted-foreground">
+            No published articles yet. Complete the Guided Flow to create one!
+          </p>
         </div>
+        <Card className="p-8 text-center">
+          <p className="text-muted-foreground">
+            Go to <strong>Guided Flow</strong> to create your first KB article with version tracking.
+          </p>
+        </Card>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header with Article Selector */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -197,205 +182,242 @@ export default function VersionHistory({ kbArticleId: kbArticleIdProp }: { kbArt
             Version History
           </h1>
           <p className="text-muted-foreground">
-            Article: <code className="text-xs font-mono">{kbArticleId}</code>
+            Article: <code className="text-xs bg-muted px-1 py-0.5 rounded">
+              {selectedArticle?.source_ticket_id || "Select an article"}
+            </code>
           </p>
         </div>
-        <Badge variant="outline">
-          {displayVersions.length} version{displayVersions.length !== 1 ? "s" : ""}
-        </Badge>
+        <div className="flex items-center gap-4">
+          {/* Article Selector Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="gap-2 min-w-[200px] justify-between">
+                <span className="truncate max-w-[180px]">
+                  {selectedArticle 
+                    ? `${selectedArticle.source_ticket_id} (v${selectedArticle.current_version})`
+                    : "Select Article"}
+                </span>
+                <ChevronDown className="h-4 w-4 shrink-0" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-[300px] max-h-[300px] overflow-y-auto">
+              {articles.map((article) => (
+                <DropdownMenuItem
+                  key={article.kb_article_id}
+                  onClick={() => handleArticleSelect(article.kb_article_id)}
+                  className={cn(
+                    "flex flex-col items-start gap-1 cursor-pointer",
+                    article.kb_article_id === selectedArticleId && "bg-accent"
+                  )}
+                >
+                  <div className="flex items-center gap-2 w-full">
+                    <span className="font-mono text-sm">{article.source_ticket_id}</span>
+                    <Badge variant="outline" className="text-xs">v{article.current_version}</Badge>
+                    {article.current_version > 1 && (
+                      <Badge variant="secondary" className="text-xs">Updated</Badge>
+                    )}
+                  </div>
+                  <span className="text-xs text-muted-foreground truncate max-w-full">
+                    {article.title}
+                  </span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Badge variant="outline">{displayVersions.length} versions</Badge>
+        </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Version Timeline */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Timeline</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-[500px]">
-              <div className="space-y-0">
-                {displayVersions
-                  .slice()
-                  .reverse()
-                  .map((version, idx) => {
-                    const isSelected = currentView?.version_id === version.version_id;
-                    const isLatest = version.version === latestVersion?.version;
-                    
-                    return (
-                      <div key={version.version_id} className="relative">
-                        {/* Timeline line */}
-                        {idx < displayVersions.length - 1 && (
-                          <div className="absolute left-[17px] top-10 h-full w-0.5 bg-border" />
-                        )}
-                        
-                        <button
+      {versionsLoading ? (
+        <Skeleton className="h-[400px] w-full" />
+      ) : displayVersions.length === 0 ? (
+        <Card className="p-8 text-center">
+          <p className="text-muted-foreground">
+            No versions found for this article.
+          </p>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Timeline Column */}
+          <Card className="lg:col-span-1">
+            <CardHeader>
+              <CardTitle className="text-lg">Timeline</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[500px] pr-4">
+                <div className="relative">
+                  {/* Timeline line */}
+                  <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-border" />
+
+                  {/* Version items - reverse order to show newest first */}
+                  <div className="space-y-6">
+                    {[...displayVersions].reverse().map((version, idx) => {
+                      const isSelected = currentView?.version_id === version.version_id;
+                      const isLatest = idx === 0;
+
+                      return (
+                        <div
+                          key={version.version_id}
+                          className={cn(
+                            "relative pl-10 cursor-pointer group",
+                            isSelected && "opacity-100",
+                            !isSelected && "opacity-60 hover:opacity-100"
+                          )}
                           onClick={() => setSelectedVersion(version)}
-                          className={`w-full flex items-start gap-3 rounded-lg p-3 text-left transition-colors hover:bg-accent ${
-                            isSelected ? "bg-primary/10 ring-1 ring-primary" : ""
-                          }`}
                         >
-                          {/* Version badge */}
+                          {/* Timeline dot */}
                           <div
-                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold ${
-                              isLatest
-                                ? "border-success bg-success text-success-foreground"
-                                : isSelected
-                                ? "border-primary bg-primary text-primary-foreground"
-                                : "border-muted-foreground bg-background"
-                            }`}
+                            className={cn(
+                              "absolute left-2.5 w-3 h-3 rounded-full border-2 transition-all",
+                              isSelected
+                                ? "bg-primary border-primary scale-125"
+                                : "bg-background border-muted-foreground group-hover:border-primary"
+                            )}
+                          />
+
+                          {/* Version card */}
+                          <div
+                            className={cn(
+                              "p-3 rounded-lg border transition-all",
+                              isSelected
+                                ? "border-primary bg-primary/5"
+                                : "border-transparent hover:border-muted-foreground/30 hover:bg-muted/50"
+                            )}
                           >
-                            v{version.version}
-                          </div>
-                          
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-sm">
-                                Version {version.version}
-                              </span>
-                              {isLatest && (
-                                <Badge variant="secondary" className="text-[10px]">
-                                  Current
+                            <div className="flex items-center justify-between mb-1">
+                              <Badge
+                                variant={isLatest ? "default" : "secondary"}
+                                className="text-xs"
+                              >
+                                v{version.version}
+                              </Badge>
+                              {version.is_rollback && (
+                                <Badge variant="destructive" className="text-xs">
+                                  Rollback
                                 </Badge>
                               )}
                             </div>
-                            <p className="text-xs text-muted-foreground truncate">
-                              {version.change_note || "No note"}
-                            </p>
-                            <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
-                              <User className="h-3 w-3" />
-                              <span>{version.reviewer}</span>
-                              <span>•</span>
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
                               <Clock className="h-3 w-3" />
-                              <span>{formatDate(version.created_at)}</span>
+                              {formatDate(version.created_at)}
                             </div>
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <User className="h-3 w-3" />
+                              {version.reviewer}
+                            </div>
+                            {version.change_note && (
+                              <p className="text-xs mt-2 text-muted-foreground line-clamp-2">
+                                {version.change_note}
+                              </p>
+                            )}
                           </div>
-                        </button>
-                      </div>
-                    );
-                  })}
-              </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
 
-        {/* Content Viewer */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <Eye className="h-5 w-5" />
-                  Version {currentView?.version}
-                </CardTitle>
-                <CardDescription>
-                  {currentView?.title}
-                </CardDescription>
+          {/* Version Detail Column */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Eye className="h-5 w-5 text-primary" />
+                  <div>
+                    <CardTitle>Version {currentView?.version || "-"}</CardTitle>
+                    <CardDescription>
+                      {currentView ? formatDate(currentView.created_at) : "Select a version"}
+                    </CardDescription>
+                  </div>
+                </div>
+                {currentView && (
+                  <Badge variant={currentView.version === latestVersion?.version ? "default" : "secondary"}>
+                    {currentView.version === latestVersion?.version ? "Latest" : "Historical"}
+                  </Badge>
+                )}
               </div>
-              <Badge
-                variant={
-                  currentView?.version === latestVersion?.version
-                    ? "default"
-                    : "secondary"
-                }
-              >
-                v{currentView?.version}
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {/* Change Summary Box */}
-            {changeSummary && currentView && currentView.version > 1 && (
-              <div className="rounded-lg border bg-muted/30 p-4 mb-4 animate-slide-in-up">
-                <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
-                  Changes in v{currentView.version}
-                </h4>
-                <div className="space-y-2">
-                  {changeSummary.added.length > 0 && (
-                    <div className="flex items-start gap-2">
-                      <Plus className="h-4 w-4 text-success shrink-0 mt-0.5" />
-                      <div className="flex flex-wrap gap-1">
-                        {changeSummary.added.map((item) => (
-                          <Badge key={item} variant="outline" className="text-xs bg-success/10 text-success border-success/30">
-                            {item}
-                          </Badge>
-                        ))}
-                      </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Metadata row */}
+              {currentView && (
+                <div className="flex flex-wrap gap-4 text-sm">
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <FileText className="h-4 w-4" />
+                    Draft: <code className="text-xs">{currentView.source_draft_id.slice(0, 8)}...</code>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <User className="h-4 w-4" />
+                    Reviewer: {currentView.reviewer}
+                  </div>
+                  {currentView.change_note && (
+                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                      <StickyNote className="h-4 w-4" />
+                      Change Note: {currentView.change_note}
                     </div>
-                  )}
-                  {changeSummary.updated.length > 0 && (
-                    <div className="flex items-start gap-2">
-                      <RefreshCw className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                      <div className="flex flex-wrap gap-1">
-                        {changeSummary.updated.map((item) => (
-                          <Badge key={item} variant="outline" className="text-xs bg-primary/10 text-primary border-primary/30">
-                            {item}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {changeSummary.removed.length > 0 && (
-                    <div className="flex items-start gap-2">
-                      <Minus className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
-                      <div className="flex flex-wrap gap-1">
-                        {changeSummary.removed.map((item) => (
-                          <Badge key={item} variant="outline" className="text-xs bg-destructive/10 text-destructive border-destructive/30">
-                            {item}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {changeSummary.added.length === 0 && changeSummary.updated.length === 0 && changeSummary.removed.length === 0 && (
-                    <p className="text-xs text-muted-foreground">No structural changes detected</p>
                   )}
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Metadata */}
-            <div className="grid grid-cols-3 gap-4 mb-4 p-3 rounded-lg bg-muted/50 border">
-              <div>
-                <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                  <FileText className="h-3 w-3" />
-                  Draft ID
-                </p>
-                <code className="text-xs font-mono">
-                  {currentView?.source_draft_id}
-                </code>
-              </div>
-              <div>
-                <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                  <User className="h-3 w-3" />
-                  Reviewer
-                </p>
-                <p className="text-xs font-medium">{currentView?.reviewer}</p>
-              </div>
-              <div>
-                <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                  <StickyNote className="h-3 w-3" />
-                  Change Note
-                </p>
-                <p className="text-xs">{currentView?.change_note || "—"}</p>
-              </div>
-            </div>
+              <Separator />
 
-            <Separator className="my-4" />
+              {/* Change Summary */}
+              {changeSummary && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium">Changes in this version:</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {changeSummary.added.map((item) => (
+                      <Badge key={`add-${item}`} variant="outline" className="gap-1 text-green-600 border-green-200 bg-green-50">
+                        <Plus className="h-3 w-3" />
+                        {item}
+                      </Badge>
+                    ))}
+                    {changeSummary.updated.map((item) => (
+                      <Badge key={`upd-${item}`} variant="outline" className="gap-1 text-amber-600 border-amber-200 bg-amber-50">
+                        <RefreshCw className="h-3 w-3" />
+                        {item}
+                      </Badge>
+                    ))}
+                    {changeSummary.removed.map((item) => (
+                      <Badge key={`rem-${item}`} variant="outline" className="gap-1 text-red-600 border-red-200 bg-red-50">
+                        <Minus className="h-3 w-3" />
+                        {item}
+                      </Badge>
+                    ))}
+                    {changeSummary.added.length === 0 &&
+                      changeSummary.updated.length === 0 &&
+                      changeSummary.removed.length === 0 && (
+                        <span className="text-xs text-muted-foreground">No structural changes</span>
+                      )}
+                  </div>
+                </div>
+              )}
 
-            {/* Content */}
-            <ScrollArea className="h-[400px]">
-              <div className="kb-markdown pr-4">
-                <ReactMarkdown>{currentView?.body_markdown || ""}</ReactMarkdown>
-              </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-      </div>
+              <Separator />
 
-      {/* Self-Updating Explanation */}
+              {/* Markdown Content */}
+              <ScrollArea className="h-[350px]">
+                <div className="prose prose-sm dark:prose-invert max-w-none">
+                  {currentView ? (
+                    <ReactMarkdown>{currentView.body_markdown}</ReactMarkdown>
+                  ) : (
+                    <p className="text-muted-foreground text-center py-8">
+                      Select a version from the timeline to view its content
+                    </p>
+                  )}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Append-only explanation */}
       <Card className="border-primary/20 bg-primary/5">
         <CardContent className="py-4">
-          <h3 className="font-semibold mb-2">Append-Only Version History</h3>
+          <h4 className="font-medium mb-2">Append-Only Version History</h4>
           <ul className="text-sm text-muted-foreground space-y-1">
             <li>• Each version is immutable — past versions are never modified</li>
             <li>• New resolved cases create new drafts, which publish as new versions</li>

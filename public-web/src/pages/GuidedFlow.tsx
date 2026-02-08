@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Check, ChevronRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -84,6 +85,7 @@ function StepIndicator({
 
 export default function GuidedFlow() {
   const { isDemoMode, defaultTicketId } = useDemoMode();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [currentStep, setCurrentStep] = useState(1);
   const [flowState, setFlowState] = useState<FlowState>({
     ticketId: isDemoMode ? defaultTicketId : null,
@@ -99,6 +101,22 @@ export default function GuidedFlow() {
 
   const updateFlowState = (updates: Partial<FlowState>) => {
     setFlowState((prev) => ({ ...prev, ...updates }));
+  };
+
+  // Open provenance drawer with correct article ID
+  const openProvenanceDrawer = () => {
+    if (flowState.kbArticleId) {
+      setSearchParams({ kb_article_id: flowState.kbArticleId });
+    }
+    setProvenanceDrawerOpen(true);
+  };
+
+  // Open versions drawer with correct article ID
+  const openVersionsDrawer = () => {
+    if (flowState.kbArticleId) {
+      setSearchParams({ kb_article_id: flowState.kbArticleId });
+    }
+    setVersionsDrawerOpen(true);
   };
 
   const goToStep = (step: number) => {
@@ -233,13 +251,13 @@ export default function GuidedFlow() {
                 <TabsContent value="provenance" className="mt-4">
                   <ProvenancePreview 
                     flowState={flowState} 
-                    onOpenFullView={() => setProvenanceDrawerOpen(true)}
+                    onOpenFullView={openProvenanceDrawer}
                   />
                 </TabsContent>
                 <TabsContent value="versions" className="mt-4">
                   <VersionPreview 
                     flowState={flowState} 
-                    onOpenFullView={() => setVersionsDrawerOpen(true)}
+                    onOpenFullView={openVersionsDrawer}
                   />
                 </TabsContent>
               </Tabs>

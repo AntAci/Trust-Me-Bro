@@ -22,14 +22,9 @@ export function AppHeader() {
 
       <div className="flex items-center gap-3">
         {isDemoMode && (
-          <Badge className="gap-1.5 bg-primary/10 text-primary hover:bg-primary/20 animate-pulse-once">
-            <Sparkles className="h-3 w-3" />
-            <span>DEMO MODE</span>
-            <span className="text-primary/60">•</span>
-            <span className="text-primary/80 flex items-center gap-1">
-              <Database className="h-2.5 w-2.5" />
-              Demo flow
-            </span>
+          <Badge className="gap-1.5 bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400">
+            <Database className="h-3 w-3" />
+            <span>Sample Dataset</span>
           </Badge>
         )}
         <div className="flex items-center gap-2">
@@ -38,8 +33,8 @@ export function AppHeader() {
             checked={isDemoMode}
             onCheckedChange={setIsDemoMode}
           />
-          <Label htmlFor="demo-mode" className="text-sm cursor-pointer">
-            Demo
+          <Label htmlFor="demo-mode" className="text-sm cursor-pointer text-muted-foreground">
+            Sandbox
           </Label>
         </div>
       </div>
