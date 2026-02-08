@@ -1,0 +1,16 @@
+# Trust-Me-Bro Backend Dependencies
+# Python 3.12+
+
+# Database
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.9
+
+# Data processing
+pandas>=2.0.0
+openpyxl>=3.1.0
+
+# Search/Retrieval
+rank-bm25>=0.2.2
+
+# Environment
+python-dotenv>=1.0.0
